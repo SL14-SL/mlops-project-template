@@ -1,0 +1,19 @@
+project:
+  name: "{{ project_name }}"
+  slug: "{{ project_slug }}"
+  task_type: "{{ task_type }}"
+
+paths:
+  data_root: "gs://${GCS_BUCKET_NAME:-replace-me}/data"
+  raw: "gs://${GCS_BUCKET_NAME:-replace-me}/data/raw"
+  interim: "gs://${GCS_BUCKET_NAME:-replace-me}/data/interim"
+  processed: "gs://${GCS_BUCKET_NAME:-replace-me}/data/processed"
+  artifacts: "gs://${GCS_BUCKET_NAME:-replace-me}/artifacts"
+
+services:
+  prefect_api_url: "${PREFECT_API_URL}"
+
+tracking:
+  mlflow_tracking_uri: "${MLFLOW_TRACKING_URI}"
+  experiment_name: "{{ project_slug }}-staging"
+  model_name: "{{ project_slug }}-model-staging"

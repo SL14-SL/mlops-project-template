@@ -1,0 +1,19 @@
+project:
+  name: "{{ project_name }}"
+  slug: "{{ project_slug }}"
+  task_type: "{{ task_type }}"
+
+paths:
+  data_root: "data"
+  raw: "data/raw"
+  interim: "data/interim"
+  processed: "data/processed"
+  artifacts: "artifacts"
+
+services:
+  prefect_api_url: "${PREFECT_API_URL:-http://localhost:4200/api}"
+
+tracking:
+  mlflow_tracking_uri: "${MLFLOW_TRACKING_URI:-http://localhost:5000}"
+  experiment_name: "{{ project_slug }}-dev"
+  model_name: "{{ project_slug }}-model-dev"
