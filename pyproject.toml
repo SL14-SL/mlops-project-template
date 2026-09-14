@@ -1,0 +1,30 @@
+[project]
+name = "mlops-project-template"
+version = "0.1.0"
+description = "Reusable project template for production-oriented classification and forecasting systems"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "copier>=9,<10",
+    "pytest>=8,<9",
+    "ruff>=0.12",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "B",
+    "UP",
+]
