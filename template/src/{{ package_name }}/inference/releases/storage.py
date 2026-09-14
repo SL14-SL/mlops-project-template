@@ -38,6 +38,12 @@ def _validate_relative_path(path: str) -> None:
             f"Release artifact path must be relative: {path}"
         )
 
+def validate_release_id(release_id: str) -> None:
+    """Validate a serving-release identifier."""
+    if not _RELEASE_ID_PATTERN.fullmatch(release_id):
+        raise ValueError(
+            f"Invalid serving release ID: {release_id}"
+        )
 
 def _copy_stream(
     source: BinaryIO,
@@ -120,10 +126,8 @@ def build_release_paths(
     artifact_filenames: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
     """Build storage paths belonging to one immutable release."""
-    if not _RELEASE_ID_PATTERN.fullmatch(release_id):
-        raise ValueError(
-            f"Invalid serving release ID: {release_id}"
-        )
+    
+    validate_release_id(release_id)
 
     release_root = join_uri(
         models_path,
