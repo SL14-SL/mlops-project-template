@@ -9,8 +9,6 @@ from {{ package_name }}.inference.releases.contracts import (
     TaskType,
 )
 from {{ package_name }}.inference.releases.policy import (
-    validate_classification_manifest,
-    validate_forecasting_manifest,
     validate_task_manifest,
 )
 
@@ -24,7 +22,8 @@ def artifact(path: str) -> ArtifactReference:
     )
 
 
-def build_classification_manifest() -> ServingReleaseManifest:
+{% if task_type == "classification" %}
+def build_valid_manifest() -> ServingReleaseManifest:
     return ServingReleaseManifest(
         schema_version=1,
         release_id="classification-release",
@@ -46,7 +45,71 @@ def build_classification_manifest() -> ServingReleaseManifest:
     )
 
 
-def build_forecasting_manifest() -> ServingReleaseManifest:
+def test_validate_task_manifest() -> None:
+    validate_task_manifest(build_valid_manifest())
+
+
+def test_manifest_requires_feature_schema() -> None:
+    manifest = replace(
+        build_valid_manifest(),
+        artifacts={
+            "prediction_probe": artifact(
+                "prediction_probe.json"
+            )
+        },
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="missing required artifacts",
+    ):
+        validate_task_manifest(manifest)
+
+
+def test_manifest_requires_decision_threshold() -> None:
+    manifest = replace(
+        build_valid_manifest(),
+        metadata={},
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="requires a numeric decision_threshold",
+    ):
+        validate_task_manifest(manifest)
+
+
+@pytest.mark.parametrize(
+    "decision_threshold",
+    [-0.1, 1.1, "0.5", True],
+)
+def test_manifest_rejects_invalid_threshold(
+    decision_threshold: object,
+) -> None:
+    manifest = replace(
+        build_valid_manifest(),
+        metadata={
+            "decision_threshold": decision_threshold,
+        },
+    )
+
+    with pytest.raises(ValueError):
+        validate_task_manifest(manifest)
+
+
+def test_manifest_rejects_forecasting_task() -> None:
+    manifest = replace(
+        build_valid_manifest(),
+        task_type=TaskType.FORECASTING,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Expected a classification",
+    ):
+        validate_task_manifest(manifest)
+{% elif task_type == "forecasting" %}
+def build_valid_manifest() -> ServingReleaseManifest:
     return ServingReleaseManifest(
         schema_version=1,
         release_id="forecasting-release",
@@ -70,64 +133,8 @@ def build_forecasting_manifest() -> ServingReleaseManifest:
     )
 
 
-def test_validate_classification_manifest() -> None:
-    validate_classification_manifest(
-        build_classification_manifest()
-    )
-
-
-def test_classification_manifest_requires_feature_schema() -> None:
-    manifest = replace(
-        build_classification_manifest(),
-        artifacts={
-            "prediction_probe": artifact(
-                "prediction_probe.json"
-            )
-        },
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="missing required artifacts",
-    ):
-        validate_classification_manifest(manifest)
-
-
-def test_classification_manifest_requires_threshold() -> None:
-    manifest = replace(
-        build_classification_manifest(),
-        metadata={},
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="requires a numeric decision_threshold",
-    ):
-        validate_classification_manifest(manifest)
-
-
-@pytest.mark.parametrize(
-    "decision_threshold",
-    [-0.1, 1.1, "0.5", True],
-)
-def test_classification_manifest_rejects_invalid_threshold(
-    decision_threshold: object,
-) -> None:
-    manifest = replace(
-        build_classification_manifest(),
-        metadata={
-            "decision_threshold": decision_threshold,
-        },
-    )
-
-    with pytest.raises(ValueError):
-        validate_classification_manifest(manifest)
-
-
-def test_validate_forecasting_manifest() -> None:
-    validate_forecasting_manifest(
-        build_forecasting_manifest()
-    )
+def test_validate_task_manifest() -> None:
+    validate_task_manifest(build_valid_manifest())
 
 
 @pytest.mark.parametrize(
@@ -138,10 +145,10 @@ def test_validate_forecasting_manifest() -> None:
         "known_calendar",
     ],
 )
-def test_forecasting_manifest_requires_artifacts(
+def test_manifest_requires_forecasting_artifacts(
     missing_artifact: str,
 ) -> None:
-    manifest = build_forecasting_manifest()
+    manifest = build_valid_manifest()
     remaining_artifacts = dict(manifest.artifacts)
     del remaining_artifacts[missing_artifact]
 
@@ -154,12 +161,12 @@ def test_forecasting_manifest_requires_artifacts(
         ValueError,
         match="missing required artifacts",
     ):
-        validate_forecasting_manifest(invalid_manifest)
+        validate_task_manifest(invalid_manifest)
 
 
-def test_forecasting_manifest_requires_target_transformation() -> None:
+def test_manifest_requires_target_transformation() -> None:
     manifest = replace(
-        build_forecasting_manifest(),
+        build_valid_manifest(),
         metadata={},
     )
 
@@ -167,16 +174,18 @@ def test_forecasting_manifest_requires_target_transformation() -> None:
         ValueError,
         match="requires a target_transformation",
     ):
-        validate_forecasting_manifest(manifest)
+        validate_task_manifest(manifest)
 
 
-def test_task_validator_dispatches_classification() -> None:
-    validate_task_manifest(
-        build_classification_manifest()
+def test_manifest_rejects_classification_task() -> None:
+    manifest = replace(
+        build_valid_manifest(),
+        task_type=TaskType.CLASSIFICATION,
     )
 
-
-def test_task_validator_dispatches_forecasting() -> None:
-    validate_task_manifest(
-        build_forecasting_manifest()
-    )
+    with pytest.raises(
+        ValueError,
+        match="Expected a forecasting",
+    ):
+        validate_task_manifest(manifest)
+{% endif %}

@@ -1,37 +1,12 @@
-from .contracts import (
-    ServingReleaseManifest,
-    TaskType,
-    validate_serving_manifest,
-)
+from .contracts import ServingReleaseManifest, TaskType, validate_serving_manifest
 
-_CLASSIFICATION_ARTIFACTS = {
+{% if task_type == "classification" %}
+_REQUIRED_ARTIFACTS = {
     "feature_schema",
 }
 
-_FORECASTING_ARTIFACTS = {
-    "store_metadata",
-    "store_state",
-    "known_calendar",
-}
 
-
-def _require_artifacts(
-    manifest: ServingReleaseManifest,
-    required_artifacts: set[str],
-) -> None:
-    """Require task-specific artifacts in a release manifest."""
-    missing_artifacts = (
-        required_artifacts - manifest.artifacts.keys()
-    )
-
-    if missing_artifacts:
-        raise ValueError(
-            "Serving manifest is missing required artifacts: "
-            f"{sorted(missing_artifacts)}."
-        )
-
-
-def validate_classification_manifest(
+def validate_task_manifest(
     manifest: ServingReleaseManifest,
 ) -> None:
     """Validate classification-specific release requirements."""
@@ -42,10 +17,15 @@ def validate_classification_manifest(
             "Expected a classification serving manifest."
         )
 
-    _require_artifacts(
-        manifest,
-        _CLASSIFICATION_ARTIFACTS,
+    missing_artifacts = (
+        _REQUIRED_ARTIFACTS - manifest.artifacts.keys()
     )
+
+    if missing_artifacts:
+        raise ValueError(
+            "Serving manifest is missing required artifacts: "
+            f"{sorted(missing_artifacts)}."
+        )
 
     metadata = manifest.metadata or {}
     decision_threshold = metadata.get("decision_threshold")
@@ -64,9 +44,15 @@ def validate_classification_manifest(
             "Classification decision_threshold must be "
             "between 0 and 1."
         )
+{% elif task_type == "forecasting" %}
+_REQUIRED_ARTIFACTS = {
+    "store_metadata",
+    "store_state",
+    "known_calendar",
+}
 
 
-def validate_forecasting_manifest(
+def validate_task_manifest(
     manifest: ServingReleaseManifest,
 ) -> None:
     """Validate forecasting-specific release requirements."""
@@ -77,10 +63,15 @@ def validate_forecasting_manifest(
             "Expected a forecasting serving manifest."
         )
 
-    _require_artifacts(
-        manifest,
-        _FORECASTING_ARTIFACTS,
+    missing_artifacts = (
+        _REQUIRED_ARTIFACTS - manifest.artifacts.keys()
     )
+
+    if missing_artifacts:
+        raise ValueError(
+            "Serving manifest is missing required artifacts: "
+            f"{sorted(missing_artifacts)}."
+        )
 
     metadata = manifest.metadata or {}
     target_transformation = metadata.get(
@@ -95,20 +86,4 @@ def validate_forecasting_manifest(
             "Forecasting serving manifest requires a "
             "target_transformation."
         )
-
-
-def validate_task_manifest(
-    manifest: ServingReleaseManifest,
-) -> None:
-    """Apply validation for the manifest's machine-learning task."""
-    if manifest.task_type is TaskType.CLASSIFICATION:
-        validate_classification_manifest(manifest)
-        return
-
-    if manifest.task_type is TaskType.FORECASTING:
-        validate_forecasting_manifest(manifest)
-        return
-
-    raise ValueError(
-        f"Unsupported serving task type: {manifest.task_type}."
-    )
+{% endif %}
