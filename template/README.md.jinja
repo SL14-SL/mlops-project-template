@@ -1,0 +1,52 @@
+# {{ project_name }}
+
+{{ project_description }}
+
+## Project type
+
+This project implements a production-oriented **{{ task_type | replace("-", " ") }}**
+machine-learning system.
+
+## Technology stack
+
+- Python {{ python_version }}
+- uv for dependency management
+- FastAPI for model serving
+- MLflow for experiment tracking and model registry
+- Prefect for workflow orchestration
+- Docker and Docker Compose
+- Prometheus and Grafana
+- Terraform for Google Cloud infrastructure
+- GitHub Actions for CI/CD
+
+## Local setup
+
+Synchronize the project environment:
+
+```bash
+uv sync
+```
+
+Run linting:
+
+```bash
+uv run ruff check .
+```
+
+Run tests: 
+
+```bash
+uv run pytest
+```
+
+## Package
+
+The primary Python package is: 
+
+```text
+{{ package_name }}
+```
+
+## Project status
+
+This project was generated from the reusable MLOps project template. 

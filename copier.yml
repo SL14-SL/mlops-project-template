@@ -1,0 +1,55 @@
+_min_copier_version: "9.0.0"
+_subdirectory: template
+_answers_file: .copier-answers.yml
+
+project_name:
+  type: str
+  help: Human-readable project name
+  default: "Example MLOps Project"
+
+project_slug:
+  type: str
+  help: Repository and deployment name using lowercase letters, digits and hyphens
+  default: "{{ project_name | lower | replace(' ', '-') | replace('_', '-') }}"
+  validator: >-
+    {% if not (project_slug | regex_search('^[a-z][a-z0-9-]*[a-z0-9]$')) %}
+    Use lowercase letters, digits and hyphens. Start with a letter and do not end with a hyphen.
+    {% endif %}
+
+package_name:
+  type: str
+  when: false
+  default: "{{ project_slug | replace('-', '_') }}"
+
+project_description:
+  type: str
+  help: Short description of the generated project
+  default: "Production-oriented machine-learning system"
+
+author_name:
+  type: str
+  help: Person or organization responsible for the project
+  default: "Steffen Lauterbach"
+
+task_type:
+  type: str
+  help: Machine-learning problem supported by the project
+  choices:
+    Classification: classification
+    Time-series forecasting: forecasting
+  default: classification
+
+python_version:
+  type: str
+  help: Python version used by the project
+  default: "3.12.9"
+
+_message_after_copy: |
+  Project "{{ project_name }}" was generated successfully.
+
+  Next steps:
+
+    cd {{ _copier_conf.dst_path }}
+    uv sync
+    uv run ruff check .
+    uv run pytest
