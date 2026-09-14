@@ -7,13 +7,16 @@ authors = [
 ]
 requires-python = ">={{ python_version }},<3.13"
 dependencies = [
+    "fastapi==0.141.1",
     "fsspec==2026.2.0",
     "gcsfs==2026.2.0",
+    "httpx2>=2.12.0",
     "mlflow==3.15.1",
     "pandas==2.3.3",
     "pyarrow==25.0.1",
     "python-dotenv>=1.2,<2",
     "pyyaml>=6,<7",
+    "uvicorn==0.40.0",
 ]
 
 [dependency-groups]
@@ -25,6 +28,9 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+filterwarnings = [
+    "ignore:The anyio\\.abc\\.BlockingPortal alias is deprecated.*:DeprecationWarning:starlette\\.testclient",
+]
 
 [tool.ruff]
 target-version = "py312"
