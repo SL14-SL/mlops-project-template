@@ -1,6 +1,6 @@
+{% if task_type == "classification" -%}
 from .contracts import ServingReleaseManifest, TaskType, validate_serving_manifest
 
-{% if task_type == "classification" %}
 _REQUIRED_ARTIFACTS = {
     "feature_schema",
 }
@@ -44,7 +44,9 @@ def validate_task_manifest(
             "Classification decision_threshold must be "
             "between 0 and 1."
         )
-{% elif task_type == "forecasting" %}
+{% elif task_type == "forecasting" -%}
+from .contracts import ServingReleaseManifest, TaskType, validate_serving_manifest
+
 _REQUIRED_ARTIFACTS = {
     "store_metadata",
     "store_state",
