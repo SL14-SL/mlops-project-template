@@ -9,10 +9,14 @@ paths:
   interim: "data/interim"
   processed: "data/processed"
   artifacts: "artifacts"
+  models: "artifacts/models"
 
 services:
   prefect_api_url: "${PREFECT_API_URL:-http://localhost:4200/api}"
 
+serving: 
+  alias: "champion"
+  
 tracking:
   mlflow_tracking_uri: "${MLFLOW_TRACKING_URI:-http://localhost:5000}"
   experiment_name: "{{ project_slug }}-dev"

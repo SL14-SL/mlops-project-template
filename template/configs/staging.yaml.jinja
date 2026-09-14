@@ -9,7 +9,11 @@ paths:
   interim: "gs://${GCS_BUCKET_NAME:-replace-me}/data/interim"
   processed: "gs://${GCS_BUCKET_NAME:-replace-me}/data/processed"
   artifacts: "gs://${GCS_BUCKET_NAME:-replace-me}/artifacts"
+  models: "gs://${GCS_BUCKET_NAME:-replace-me}/models"
 
+serving:
+  alias: "champion"
+  
 services:
   prefect_api_url: "${PREFECT_API_URL}"
 

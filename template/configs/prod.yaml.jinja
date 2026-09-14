@@ -9,10 +9,14 @@ paths:
   interim: "gs://${GCS_BUCKET_NAME:-replace-me}/data/interim"
   processed: "gs://${GCS_BUCKET_NAME:-replace-me}/data/processed"
   artifacts: "gs://${GCS_BUCKET_NAME:-replace-me}/artifacts"
+  models: "gs://${GCS_BUCKET_NAME:-replace-me}/models"
 
 services:
   prefect_api_url: "${PREFECT_API_URL}"
 
+serving:
+  alias: "champion"
+  
 tracking:
   mlflow_tracking_uri: "${MLFLOW_TRACKING_URI}"
   experiment_name: "{{ project_slug }}-prod"
