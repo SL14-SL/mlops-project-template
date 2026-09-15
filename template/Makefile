@@ -39,8 +39,13 @@ api-build: ## Build the API container image
 
 
 .PHONY: api-up
-api-up: ## Build and start the API container
-	$(COMPOSE) up --detach --build api
+api-up: ## Start the API using the existing image
+	$(COMPOSE) up --detach api
+
+
+.PHONY: api-rebuild
+api-rebuild: ## Rebuild the image and recreate the API container
+	$(COMPOSE) up --detach --build --force-recreate api
 
 
 .PHONY: api-ps

@@ -19,6 +19,7 @@ RUN uv sync \
     --no-install-project
 
 COPY README.md ./
+COPY configs ./configs
 COPY src ./src
 
 RUN uv sync \
@@ -45,6 +46,16 @@ COPY --from=builder \
     /app/.venv \
     /app/.venv
 
+COPY --from=builder \
+    --chown=appuser:appuser \
+    /app/pyproject.toml \
+    /app/pyproject.toml
+
+COPY --from=builder \
+    --chown=appuser:appuser \
+    /app/configs \
+    /app/configs
+
 USER appuser
 
 EXPOSE 8000
@@ -57,4 +68,4 @@ HEALTHCHECK \
     CMD python -c \
     "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/livez', timeout=3)"
 
-CMD ["uvicorn", "{{package_name}}.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "{{package_name}}.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
