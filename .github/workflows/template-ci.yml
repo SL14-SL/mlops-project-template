@@ -1,0 +1,101 @@
+name: Template CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-and-test:
+    name: Test ${{ matrix.task_type }} project
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - task_type: classification
+            project_name: Classification Template CI
+            project_slug: classification-template-ci
+
+          - task_type: forecasting
+            project_name: Forecasting Template CI
+            project_slug: forecasting-template-ci
+
+    steps:
+      - name: Check out template repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.12.13"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Synchronize template dependencies
+        run: uv sync --locked
+
+      - name: Generate project
+        run: |
+          uv run copier copy --defaults \
+            --data project_name="${{ matrix.project_name }}" \
+            --data project_slug="${{ matrix.project_slug }}" \
+            --data task_type="${{ matrix.task_type }}" \
+            . \
+            "generated/${{ matrix.project_slug }}"
+
+      - name: Create local environment file
+        working-directory: generated/${{ matrix.project_slug }}
+        run: cp .env.example .env
+
+      - name: Synchronize generated project
+        working-directory: generated/${{ matrix.project_slug }}
+        run: uv sync
+
+      - name: Run generated project checks
+        working-directory: generated/${{ matrix.project_slug }}
+        run: make check
+
+      - name: Validate Compose configuration
+        working-directory: generated/${{ matrix.project_slug }}
+        run: docker compose config
+
+      - name: Build and start API
+        working-directory: generated/${{ matrix.project_slug }}
+        run: make api-rebuild
+
+      - name: Wait for API liveness
+        working-directory: generated/${{ matrix.project_slug }}
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl \
+              --fail \
+              --silent \
+              --show-error \
+              http://localhost:8000/livez
+            then
+              exit 0
+            fi
+
+            echo "Waiting for API startup: attempt ${attempt}/30"
+            sleep 2
+          done
+
+          echo "API did not become live."
+          docker compose ps --all
+          docker compose logs --no-color api
+          exit 1
+
+      - name: Show container status
+        working-directory: generated/${{ matrix.project_slug }}
+        run: docker compose ps api
+
+      - name: Stop Compose stack
+        if: always()
+        working-directory: generated/${{ matrix.project_slug }}
+        run: docker compose down --volumes
