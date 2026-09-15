@@ -1,0 +1,289 @@
+{% if task_type == "classification" -%}
+from unittest.mock import MagicMock
+
+from fastapi.testclient import TestClient
+
+from {{ package_name }}.api.app import create_app
+from {{ package_name }}.api.routers import prediction
+from {{ package_name }}.api.schema import (
+    PredictionResponse,
+    PredictionResult,
+)
+from {{ package_name }}.inference.model_manager import (
+    ModelNotReadyError,
+)
+{% elif task_type == "forecasting" -%}
+from unittest.mock import MagicMock
+
+from fastapi.testclient import TestClient
+
+from {{ package_name }}.api.app import create_app
+from {{ package_name }}.api.routers import prediction
+from {{ package_name }}.api.schema import (
+    PredictionResponse,
+    PredictionResult,
+)
+from {{ package_name }}.inference.model_manager import (
+    ModelNotReadyError,
+)
+{% endif %}
+API_KEY = "test-prediction-key"
+
+
+def build_client(
+    *,
+    ready: bool = True,
+) -> tuple[TestClient, MagicMock]:
+    model_manager = MagicMock()
+    model_manager.ready = ready
+
+    app = create_app(
+        model_manager=model_manager,
+        load_model_on_startup=False,
+        api_key=API_KEY,
+    )
+
+    return TestClient(
+        app,
+        raise_server_exceptions=False,
+    ), model_manager
+
+
+{% if task_type == "classification" %}
+def valid_payload() -> dict:
+    return {
+        "inputs": [
+            {
+                "feature_a": 1.0,
+                "feature_b": 2.0,
+            }
+        ]
+    }
+
+
+def successful_response() -> PredictionResponse:
+    return PredictionResponse(
+        release_id="release-1",
+        predictions=[
+            PredictionResult(
+                row_index=0,
+                probability=0.82,
+                prediction=1,
+            )
+        ],
+    )
+{% elif task_type == "forecasting" %}
+def valid_payload() -> dict:
+    return {
+        "inputs": [
+            {
+                "entity_id": 1,
+                "date": "2026-09-16",
+            }
+        ],
+        "horizon": 2,
+    }
+
+
+def successful_response() -> PredictionResponse:
+    return PredictionResponse(
+        release_id="release-1",
+        predictions=[
+            PredictionResult(
+                row_index=0,
+                horizon_step=1,
+                prediction=100.0,
+            ),
+            PredictionResult(
+                row_index=0,
+                horizon_step=2,
+                prediction=110.0,
+            ),
+        ],
+    )
+{% endif %}
+
+
+def test_predict_returns_success(
+    monkeypatch,
+) -> None:
+    client, model_manager = build_client()
+    service = MagicMock()
+    service.predict.return_value = successful_response()
+    service_constructor = MagicMock(
+        return_value=service
+    )
+    monkeypatch.setattr(
+        prediction,
+        "PredictionService",
+        service_constructor,
+    )
+
+    with client:
+        response = client.post(
+            "/predict",
+            headers={
+                "X-API-Key": API_KEY,
+            },
+            json=valid_payload(),
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+    assert response.json()["release_id"] == "release-1"
+    service_constructor.assert_called_once_with(
+        model_manager
+    )
+
+
+def test_predict_requires_api_key() -> None:
+    client, _ = build_client()
+
+    with client:
+        response = client.post(
+            "/predict",
+            json=valid_payload(),
+        )
+
+    assert response.status_code == 401
+
+
+def test_predict_rejects_invalid_api_key() -> None:
+    client, _ = build_client()
+
+    with client:
+        response = client.post(
+            "/predict",
+            headers={
+                "X-API-Key": "wrong-key",
+            },
+            json=valid_payload(),
+        )
+
+    assert response.status_code == 403
+
+
+def test_predict_requires_ready_model_manager() -> None:
+    client, _ = build_client(ready=False)
+
+    with client:
+        response = client.post(
+            "/predict",
+            headers={
+                "X-API-Key": API_KEY,
+            },
+            json=valid_payload(),
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == (
+        "Prediction service is not ready."
+    )
+
+
+def test_predict_rejects_empty_input_batch() -> None:
+    client, _ = build_client()
+
+    with client:
+        response = client.post(
+            "/predict",
+            headers={
+                "X-API-Key": API_KEY,
+            },
+            json={
+                "inputs": [],
+            },
+        )
+
+    assert response.status_code == 422
+
+
+def test_predict_maps_domain_validation_error(
+    monkeypatch,
+) -> None:
+    client, _ = build_client()
+    service = MagicMock()
+    service.predict.side_effect = ValueError(
+        "Prediction input is missing required columns."
+    )
+    monkeypatch.setattr(
+        prediction,
+        "PredictionService",
+        MagicMock(return_value=service),
+    )
+
+    with client:
+        response = client.post(
+            "/predict",
+            headers={
+                "X-API-Key": API_KEY,
+            },
+            json=valid_payload(),
+        )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == (
+        "Prediction input is missing required columns."
+    )
+
+
+def test_predict_maps_model_not_ready_error(
+    monkeypatch,
+) -> None:
+    client, _ = build_client()
+    service = MagicMock()
+    service.predict.side_effect = ModelNotReadyError(
+        "Bundle disappeared during reload."
+    )
+    monkeypatch.setattr(
+        prediction,
+        "PredictionService",
+        MagicMock(return_value=service),
+    )
+
+    with client:
+        response = client.post(
+            "/predict",
+            headers={
+                "X-API-Key": API_KEY,
+            },
+            json=valid_payload(),
+        )
+
+    assert response.status_code == 503
+
+
+def test_predict_hides_unexpected_error(
+    monkeypatch,
+) -> None:
+    client, _ = build_client()
+    service = MagicMock()
+    service.predict.side_effect = RuntimeError(
+        "sensitive model backend details"
+    )
+    monkeypatch.setattr(
+        prediction,
+        "PredictionService",
+        MagicMock(return_value=service),
+    )
+
+    with client:
+        response = client.post(
+            "/predict",
+            headers={
+                "X-API-Key": API_KEY,
+                "X-Request-ID": "prediction-error-1",
+            },
+            json=valid_payload(),
+        )
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "status": "error",
+        "error": "internal_server_error",
+        "request_id": "prediction-error-1",
+    }
+    assert (
+        "sensitive model backend details"
+        not in response.text
+    )

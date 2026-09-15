@@ -9,6 +9,7 @@ from .middleware import request_context_middleware
 from .routers.admin import router as admin_router
 from .routers.health import router as health_router
 from .routers.metrics import router as metrics_router
+from .routers.prediction import router as prediction_router
 
 logger = get_logger(__name__)
 
@@ -51,5 +52,6 @@ def create_app(
     app.include_router(health_router)
     app.include_router(admin_router)
     app.include_router(metrics_router)
+    app.include_router(prediction_router)
 
     return app
