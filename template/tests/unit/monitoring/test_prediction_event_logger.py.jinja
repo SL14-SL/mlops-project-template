@@ -1,0 +1,120 @@
+import json
+from unittest.mock import MagicMock
+
+import pytest
+
+from {{ package_name }}.monitoring.prediction_logger import (
+    PredictionEvent,
+    log_prediction_event,
+)
+
+
+def build_event(**overrides: object) -> PredictionEvent:
+    values: dict[str, object] = {
+        "request_id": "request-123",
+        "release_id": "release-456",
+        "task_type": "{{ task_type }}",
+        "model_name": "example-model",
+        "model_version": "7",
+        "batch_size": 3,
+        "duration_ms": 12.5,
+        "status": "success",
+        "error_type": None,
+    }
+    values.update(overrides)
+    return PredictionEvent(**values)  # type: ignore[arg-type]
+
+
+def test_event_is_converted_to_dictionary() -> None:
+    event = build_event()
+
+    assert event.to_dict() == {
+        "request_id": "request-123",
+        "release_id": "release-456",
+        "task_type": "{{ task_type }}",
+        "model_name": "example-model",
+        "model_version": "7",
+        "batch_size": 3,
+        "duration_ms": 12.5,
+        "status": "success",
+        "error_type": None,
+    }
+
+
+def test_prediction_event_is_written_as_structured_json() -> None:
+    logger = MagicMock()
+    event = build_event()
+
+    log_prediction_event(event, logger=logger)
+
+    logger.info.assert_called_once()
+
+    message, serialized_payload = logger.info.call_args.args
+    extra = logger.info.call_args.kwargs["extra"]
+    decoded_payload = json.loads(serialized_payload)
+
+    assert message == "prediction_event=%s"
+    assert decoded_payload == event.to_dict()
+    assert extra == {"prediction_event": event.to_dict()}
+
+
+def test_event_does_not_contain_raw_prediction_data() -> None:
+    event = build_event()
+
+    logged_fields = set(event.to_dict())
+
+    assert "inputs" not in logged_fields
+    assert "features" not in logged_fields
+    assert "predictions" not in logged_fields
+    assert "probabilities" not in logged_fields
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("request_id", ""),
+        ("release_id", ""),
+        ("task_type", ""),
+        ("model_name", ""),
+        ("model_version", ""),
+    ],
+)
+def test_required_text_fields_must_not_be_empty(
+    field: str,
+    value: str,
+) -> None:
+    with pytest.raises(ValueError, match=field):
+        build_event(**{field: value})
+
+
+def test_batch_size_must_not_be_negative() -> None:
+    with pytest.raises(ValueError, match="batch_size"):
+        build_event(batch_size=-1)
+
+
+@pytest.mark.parametrize("duration_ms", [-1.0, float("inf"), float("nan")])
+def test_duration_must_be_finite_and_non_negative(
+    duration_ms: float,
+) -> None:
+    with pytest.raises(ValueError, match="duration_ms"):
+        build_event(duration_ms=duration_ms)
+
+
+def test_successful_event_cannot_have_error_type() -> None:
+    with pytest.raises(ValueError, match="Successful"):
+        build_event(status="success", error_type="ValueError")
+
+
+def test_failed_event_requires_error_type() -> None:
+    with pytest.raises(ValueError, match="Failed"):
+        build_event(status="error", error_type=None)
+
+
+def test_failed_event_accepts_error_type() -> None:
+    event = build_event(
+        status="error",
+        error_type="ModelNotReadyError",
+    )
+
+    assert event.status == "error"
+    assert event.error_type == "ModelNotReadyError"
