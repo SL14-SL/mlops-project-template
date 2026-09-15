@@ -8,6 +8,7 @@ The template follows Semantic Versioning.
 
 - reusable contracts for ingestion, feature engineering and dataset splitting
 - reusable model training and evaluation contracts
+- framework-independent training pipeline runner
 
 ### Added
 
