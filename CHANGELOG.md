@@ -6,6 +6,8 @@ The template follows Semantic Versioning.
 
 ## [Unreleased]
 
+- reusable contracts for ingestion, feature engineering and dataset splitting
+
 ### Added
 
 ### Changed
