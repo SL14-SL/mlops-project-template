@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from ..inference.model_manager import ModelManager
 from ..utils.logger import get_logger
+from .middleware import request_context_middleware
 from .routers.admin import router as admin_router
 from .routers.health import router as health_router
 
@@ -45,6 +46,7 @@ def create_app(
     )
     app.state.model_manager = model_manager
     app.state.api_key = api_key
+    app.middleware("http")(request_context_middleware)
     app.include_router(health_router)
     app.include_router(admin_router)
 
