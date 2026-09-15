@@ -221,6 +221,7 @@ A typical validation sequence is:
 
 ```bash
 uv run copier copy --defaults \
+  --vcs-ref HEAD \
   --data project_name="Classification Template Test" \
   --data project_slug="classification-template-test" \
   --data task_type="classification" \

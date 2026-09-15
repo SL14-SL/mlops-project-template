@@ -43,6 +43,7 @@ jobs:
       - name: Generate project
         run: |
           uv run copier copy --defaults \
+            --vcs-ref HEAD \
             --data project_name="${{ matrix.project_name }}" \
             --data project_slug="${{ matrix.project_slug }}" \
             --data task_type="${{ matrix.task_type }}" \
