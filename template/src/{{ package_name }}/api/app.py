@@ -14,6 +14,7 @@ def create_app(
     *,
     model_manager: ModelManager | None = None,
     load_model_on_startup: bool = True,
+    title: str = "MLOps Model API",
 ) -> FastAPI:
     """Create and configure the FastAPI application."""
 
@@ -36,7 +37,7 @@ def create_app(
         yield
 
     app = FastAPI(
-        title="MLOps Model API",
+        title=title,
         version="0.1.0",
         lifespan=lifespan,
     )

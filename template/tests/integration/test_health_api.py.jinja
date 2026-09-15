@@ -121,3 +121,12 @@ def test_failed_startup_keeps_api_live() -> None:
 
     assert live_response.status_code == 200
     assert ready_response.status_code == 503
+
+def test_application_uses_custom_title() -> None:
+    app = create_app(
+        model_manager=None,
+        load_model_on_startup=False,
+        title="Customer Churn API",
+    )
+
+    assert app.title == "Customer Churn API"
