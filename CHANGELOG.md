@@ -14,6 +14,7 @@ The template follows Semantic Versioning.
 - immutable lifecycle status model for training-pipeline runs
 - lifecycle tracking for framework-independent training runs
 - versioned JSON serialization for pipeline lifecycle records
+- local and GCS-compatible persistence for pipeline lifecycle records
 
 ### Changed
 
