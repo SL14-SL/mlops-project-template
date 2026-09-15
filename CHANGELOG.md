@@ -6,11 +6,12 @@ The template follows Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
 - reusable contracts for ingestion, feature engineering and dataset splitting
 - reusable model training and evaluation contracts
 - framework-independent training pipeline runner
-
-### Added
+- immutable lifecycle status model for training-pipeline runs
 
 ### Changed
 
