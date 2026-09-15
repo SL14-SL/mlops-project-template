@@ -6,6 +6,11 @@ from uuid import uuid4
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 
+from ..monitoring.serving import (
+    normalize_path,
+    observe_request,
+    should_ignore_path,
+)
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,12 +39,6 @@ def _request_id_from_request(
     return str(uuid4())
 
 
-def _duration_ms(started_at: float) -> str:
-    """Return elapsed milliseconds formatted for a response header."""
-    elapsed_seconds = time.perf_counter() - started_at
-    return f"{elapsed_seconds * 1000:.2f}"
-
-
 async def request_context_middleware(
     request: Request,
     call_next: Callable[
@@ -47,7 +46,7 @@ async def request_context_middleware(
         Awaitable[Response],
     ],
 ) -> Response:
-    """Add request context, timing and safe error handling."""
+    """Add request context, timing, metrics and safe errors."""
     request_id = _request_id_from_request(request)
     request.state.request_id = request_id
     started_at = time.perf_counter()
@@ -70,8 +69,25 @@ async def request_context_middleware(
             },
         )
 
+    latency_seconds = time.perf_counter() - started_at
+    raw_path = request.url.path
+
+    if not should_ignore_path(raw_path):
+        route = request.scope.get("route")
+        route_path = getattr(route, "path", None)
+        normalized_path = normalize_path(
+            raw_path,
+            route_path,
+        )
+        observe_request(
+            method=request.method,
+            path=normalized_path,
+            status_code=response.status_code,
+            latency_seconds=latency_seconds,
+        )
+
     response.headers["X-Request-ID"] = request_id
     response.headers["X-Process-Time-Ms"] = (
-        _duration_ms(started_at)
+        f"{latency_seconds * 1000:.2f}"
     )
     return response
