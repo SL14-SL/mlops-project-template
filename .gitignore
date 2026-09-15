@@ -30,6 +30,7 @@ dist/
 .env
 .env.*
 !.env.example
+!template/.env.example.jinja
 
 # Generated projects
 generated/
