@@ -18,6 +18,29 @@ def build_model_manager(
 
     return ModelManager(bundle_loader)
 
+def _api_key_from_config(
+    config: dict[str, Any],
+) -> str:
+    """Return the configured API key."""
+    api_config = config.get("api")
+
+    if not isinstance(api_config, dict):
+        raise ValueError(
+            "Config does not contain a valid 'api' section."
+        )
+
+    api_key = api_config.get("api_key")
+
+    if (
+        not isinstance(api_key, str)
+        or not api_key.strip()
+        or api_key.startswith("${")
+    ):
+        raise ValueError(
+            "Config does not contain a resolved API key."
+        )
+
+    return api_key
 
 def build_application(
     *,
@@ -51,4 +74,8 @@ def build_application(
         model_manager=model_manager,
         load_model_on_startup=load_model_on_startup,
         title=application_title,
+        api_key=_api_key_from_config(
+            application_config
+        ),
     )
+    

@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from ..inference.model_manager import ModelManager
 from ..utils.logger import get_logger
+from .routers.admin import router as admin_router
 from .routers.health import router as health_router
 
 logger = get_logger(__name__)
@@ -15,6 +16,7 @@ def create_app(
     model_manager: ModelManager | None = None,
     load_model_on_startup: bool = True,
     title: str = "MLOps Model API",
+    api_key: str | None = None,
 ) -> FastAPI:
     """Create and configure the FastAPI application."""
 
@@ -42,6 +44,8 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.model_manager = model_manager
+    app.state.api_key = api_key
     app.include_router(health_router)
+    app.include_router(admin_router)
 
     return app

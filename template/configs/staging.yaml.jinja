@@ -17,6 +17,9 @@ serving:
 services:
   prefect_api_url: "${PREFECT_API_URL}"
 
+api:
+  api_key: "${API_KEY}"
+
 tracking:
   mlflow_tracking_uri: "${MLFLOW_TRACKING_URI}"
   experiment_name: "{{ project_slug }}-staging"
