@@ -1,6 +1,8 @@
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
+from uuid import uuid4
 
 import pandas as pd
 
@@ -17,6 +19,7 @@ from ..training.contracts import (
     ModelTrainer,
     TrainingResult,
 )
+from .status import PipelineRun
 
 
 @dataclass(frozen=True)
@@ -28,6 +31,33 @@ class PipelineResult:
     splits: DatasetSplits
     training: TrainingResult
     evaluation: EvaluationResult
+
+
+@dataclass(frozen=True)
+class TrackedPipelineResult:
+    """Pipeline result together with its final lifecycle state."""
+
+    pipeline: PipelineResult
+    run: PipelineRun
+
+
+PipelineRunObserver = Callable[
+    [PipelineRun],
+    None,
+]
+Clock = Callable[[], datetime]
+
+
+def _utc_now() -> datetime:
+    """Return the current timezone-aware UTC timestamp."""
+    return datetime.now(UTC)
+
+
+def _ignore_pipeline_status(
+    run: PipelineRun,
+) -> None:
+    """Default observer used when status persistence is disabled."""
+    del run
 
 
 def _validate_features(
@@ -132,4 +162,60 @@ def run_training_pipeline(
         splits=splits,
         training=training_result,
         evaluation=evaluation_result,
+    )
+
+
+def run_tracked_training_pipeline(
+    *,
+    ingestor: DataIngestor,
+    feature_builder: FeatureBuilder,
+    splitter: DatasetSplitter,
+    trainer: ModelTrainer,
+    evaluator: ModelEvaluator,
+    config: Mapping[str, Any],
+    run_id: str | None = None,
+    observer: PipelineRunObserver = (
+        _ignore_pipeline_status
+    ),
+    clock: Clock = _utc_now,
+) -> TrackedPipelineResult:
+    """Execute a pipeline and report lifecycle transitions."""
+    running = PipelineRun.start(
+        run_id or str(uuid4()),
+        started_at_utc=clock(),
+    )
+    observer(running)
+
+    try:
+        pipeline_result = run_training_pipeline(
+            ingestor=ingestor,
+            feature_builder=feature_builder,
+            splitter=splitter,
+            trainer=trainer,
+            evaluator=evaluator,
+            config=config,
+        )
+    except Exception as exc:
+        failed = running.fail(
+            exc,
+            completed_at_utc=clock(),
+        )
+        observer(failed)
+        raise
+
+    if pipeline_result.evaluation.approved:
+        finished = running.succeed(
+            completed_at_utc=clock(),
+        )
+    else:
+        finished = running.reject(
+            pipeline_result.evaluation.reasons,
+            completed_at_utc=clock(),
+        )
+
+    observer(finished)
+
+    return TrackedPipelineResult(
+        pipeline=pipeline_result,
+        run=finished,
     )
