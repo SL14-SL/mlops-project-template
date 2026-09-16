@@ -50,6 +50,24 @@ def _model_name_from_config(
     return model_name
 
 
+def _validate_model_uri(
+    model_uri: str,
+) -> str:
+    """Validate one MLflow model source URI."""
+
+    if (
+        not isinstance(model_uri, str)
+        or not model_uri.strip()
+        or model_uri.startswith("${")
+    ):
+        raise ValueError(
+            "MLflow model URI must be a "
+            "resolved non-empty string."
+        )
+
+    return model_uri
+
+
 def _validate_artifact_path(
     artifact_path: str,
 ) -> str:
@@ -82,6 +100,7 @@ def register_approved_model(
     evaluation_result: EvaluationResult,
     config: Mapping[str, Any],
     artifact_path: str = "model",
+    model_uri: str | None = None,
 ) -> ModelRegistrationResult:
     """Register an approved MLflow model candidate."""
     if not isinstance(
@@ -114,18 +133,25 @@ def register_approved_model(
             ),
         )
 
-    validated_artifact_path = (
-        _validate_artifact_path(
-            artifact_path
+    if model_uri is None:
+        validated_artifact_path = (
+            _validate_artifact_path(
+                artifact_path
+            )
         )
-    )
-    run_model_uri = (
-        f"runs:/{training_result.run_id}/"
-        f"{validated_artifact_path}"
-    )
+        registration_source_uri = (
+            f"runs:/{training_result.run_id}/"
+            f"{validated_artifact_path}"
+        )
+    else:
+        registration_source_uri = (
+            _validate_model_uri(
+                model_uri
+            )
+        )
 
     model_version = mlflow.register_model(
-        model_uri=run_model_uri,
+        model_uri=registration_source_uri,
         name=model_name,
     )
     version = str(model_version.version)

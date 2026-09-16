@@ -142,6 +142,9 @@ def test_runs_complete_model_lifecycle(
         evaluation_result=evaluation_result,
         config=pipeline.config,
         artifact_path="model",
+        logged_model_uri=(
+            model_artifact.model_uri
+        ),
     )
 
 
@@ -249,6 +252,9 @@ def test_preserves_explicit_pipeline_run_id(
         evaluation_result=evaluation_result,
         config=pipeline.config,
         artifact_path="trained/model",
+        logged_model_uri=(
+            model_artifact.model_uri
+        ),
     )
 
 

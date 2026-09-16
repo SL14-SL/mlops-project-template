@@ -113,6 +113,7 @@ def test_approved_candidate_completes_lifecycle(
         evaluation_result=evaluation_result,
         config=CONFIG,
         artifact_path="model",
+        model_uri=None,
     )
     assign_challenger.assert_called_once_with(
         registration=registration,
@@ -209,6 +210,7 @@ def test_custom_artifact_path_is_forwarded(
         evaluation_result=evaluation_result,
         config=CONFIG,
         artifact_path="trained/model",
+        model_uri=None,
     )
 
 @patch(
@@ -237,6 +239,7 @@ def test_configured_lifecycle_loads_policy(
         evaluation_result=evaluation_result,
         config=CONFIG,
         artifact_path="trained/model",
+        logged_model_uri="models:/m-logged-model",
     )
 
     assert result is lifecycle_result
@@ -249,4 +252,5 @@ def test_configured_lifecycle_loads_policy(
         promotion_policy=POLICY,
         config=CONFIG,
         artifact_path="trained/model",
+        logged_model_uri="models:/m-logged-model",
     )

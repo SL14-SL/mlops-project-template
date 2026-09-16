@@ -216,6 +216,9 @@ def run_prefect_model_lifecycle(
             ),
             config=pipeline.config,
             artifact_path=artifact_path,
+            logged_model_uri=(
+                model_artifact.model_uri
+            ),
         )
     )
 

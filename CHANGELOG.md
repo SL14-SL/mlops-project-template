@@ -48,6 +48,7 @@ The template follows Semantic Versioning.
 - automatic champion restoration when serving-release publication fails
 - end-to-end integration test from real MLflow run to active serving release
 - MLflow 3 logged-model URI support for model artifact adapters
+- direct MLflow 3 logged-model registration without run-artifact fallback
 
 ### Changed
 

@@ -38,6 +38,7 @@ def finalize_model_candidate(
     promotion_policy: PromotionPolicy,
     config: Mapping[str, Any],
     artifact_path: str = "model",
+    logged_model_uri: str | None = None,
 ) -> CandidateLifecycleResult:
     """Register, alias and possibly promote a model candidate."""
 
@@ -46,6 +47,7 @@ def finalize_model_candidate(
         evaluation_result=evaluation_result,
         config=config,
         artifact_path=artifact_path,
+        model_uri=logged_model_uri,
     )
 
     if not registration.registered:
@@ -79,6 +81,7 @@ def finalize_configured_model_candidate(
     evaluation_result: EvaluationResult,
     config: Mapping[str, Any],
     artifact_path: str = "model",
+    logged_model_uri: str | None = None,
 ) -> CandidateLifecycleResult:
     """Finalize a candidate using the configured promotion policy."""
 
@@ -92,4 +95,5 @@ def finalize_configured_model_candidate(
         promotion_policy=promotion_policy,
         config=config,
         artifact_path=artifact_path,
+        logged_model_uri=logged_model_uri,
     )
