@@ -41,6 +41,7 @@ The template follows Semantic Versioning.
 - immutable serving-release manifest builder for promoted champion models
 - local and GCS-compatible serving artifact publisher with checksums and cleanup
 - validated serving-release publication with atomic active-pointer activation
+- project-specific serving-release input provider contract
 
 ### Changed
 
