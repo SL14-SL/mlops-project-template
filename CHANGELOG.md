@@ -39,6 +39,7 @@ The template follows Semantic Versioning.
 - model artifact logger dependency for configured training pipelines
 - model artifact logging inside the active MLflow training run
 - immutable serving-release manifest builder for promoted champion models
+- local and GCS-compatible serving artifact publisher with checksums and cleanup
 
 ### Changed
 
