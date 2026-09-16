@@ -24,6 +24,7 @@ The template follows Semantic Versioning.
 - version-controlled local Prefect training deployment
 - optional persistent local MLflow tracking server
 - shared MLflow training run and result logging adapter
+- approval-gated MLflow model registration
 
 ### Changed
 
