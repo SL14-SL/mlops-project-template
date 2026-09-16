@@ -40,6 +40,7 @@ The template follows Semantic Versioning.
 - model artifact logging inside the active MLflow training run
 - immutable serving-release manifest builder for promoted champion models
 - local and GCS-compatible serving artifact publisher with checksums and cleanup
+- validated serving-release publication with atomic active-pointer activation
 
 ### Changed
 
