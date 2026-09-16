@@ -31,6 +31,7 @@ The template follows Semantic Versioning.
 - unified model candidate lifecycle for registration, challenger assignment and champion promotion
 - environment-specific promotion policies for classification and forecasting
 - configuration-driven model lifecycle entrypoint
+- MLflow logging for model evaluation metrics and approval decisions
 
 ### Changed
 

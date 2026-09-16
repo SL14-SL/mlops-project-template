@@ -8,7 +8,7 @@ from typing import Any
 
 import mlflow
 
-from ..training.contracts import TrainingResult
+from ..training.contracts import EvaluationResult, TrainingResult
 
 
 @dataclass(frozen=True)
@@ -151,5 +151,44 @@ def log_training_result(
                 in result.artifacts.items()
             }
         )
+
+    return result
+
+def log_evaluation_result(
+    result: EvaluationResult,
+) -> EvaluationResult:
+    """Log evaluation metrics and approval to the active run."""
+
+    if not isinstance(result, EvaluationResult):
+        raise TypeError(
+            "MLflow evaluation logging requires "
+            "EvaluationResult."
+        )
+
+    _active_run_id()
+
+    if result.metrics:
+        mlflow.log_metrics(
+            {
+                name: float(value)
+                for name, value
+                in result.metrics.items()
+            }
+        )
+
+    tags = {
+        "evaluation.approved": (
+            "true"
+            if result.approved
+            else "false"
+        )
+    }
+
+    if result.reasons:
+        tags["evaluation.reasons"] = "; ".join(
+            result.reasons
+        )
+
+    mlflow.set_tags(tags)
 
     return result
