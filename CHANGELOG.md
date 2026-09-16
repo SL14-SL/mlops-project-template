@@ -43,6 +43,7 @@ The template follows Semantic Versioning.
 - validated serving-release publication with atomic active-pointer activation
 - project-specific serving-release input provider contract
 - serving-release input provider dependency for configured training pipelines
+- automatic serving-release publication after successful champion promotion
 
 ### Changed
 

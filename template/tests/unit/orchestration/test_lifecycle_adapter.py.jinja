@@ -88,6 +88,7 @@ def test_runs_complete_model_lifecycle(
     )
 
     candidate_result = MagicMock()
+    candidate_result.promotion = None
     model_artifact = MagicMock()
 
     log_model_artifact.return_value = (
@@ -113,6 +114,7 @@ def test_runs_complete_model_lifecycle(
         is model_artifact
     )
     assert result.candidate is candidate_result
+    assert result.serving_release is None
 
     start_training_run.assert_called_once_with(
         pipeline.config,
@@ -203,6 +205,7 @@ def test_preserves_explicit_pipeline_run_id(
 
     model_artifact = MagicMock()
     candidate_result = MagicMock()
+    candidate_result.promotion = None
 
     log_model_artifact.return_value = (
         model_artifact
@@ -223,6 +226,7 @@ def test_preserves_explicit_pipeline_run_id(
         is model_artifact
     )
     assert result.candidate is candidate_result
+    assert result.serving_release is None
 
     run_prefect_training_pipeline.assert_called_once_with(
         pipeline=pipeline,

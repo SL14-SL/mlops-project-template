@@ -1,8 +1,16 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
 from prefect import flow
 
+from ..inference.releases.input_provider import (
+    build_serving_release_input,
+)
+from ..inference.releases.publisher import (
+    PublishedServingRelease,
+    publish_serving_release,
+)
 from ..pipeline.runner import (
     TrackedPipelineResult,
 )
@@ -16,7 +24,10 @@ from ..tracking.mlflow import (
     log_training_result,
     start_training_run,
 )
-from ..tracking.model_artifact import LoggedModelArtifact, log_model_artifact
+from ..tracking.model_artifact import (
+    LoggedModelArtifact,
+    log_model_artifact,
+)
 from .prefect_adapter import (
     run_prefect_training_pipeline,
 )
@@ -29,6 +40,90 @@ class PrefectTrainingLifecycleResult:
     pipeline: TrackedPipelineResult
     model_artifact: LoggedModelArtifact
     candidate: CandidateLifecycleResult
+    serving_release: (
+        PublishedServingRelease | None
+    )
+
+
+def _models_path(
+    config: Mapping[str, Any],
+) -> str:
+    """Return the configured serving-model storage path."""
+
+    paths = config.get("paths")
+
+    if not isinstance(paths, Mapping):
+        raise ValueError(
+            "Config must contain a valid "
+            "'paths' section."
+        )
+
+    models_path = paths.get("models")
+
+    if (
+        not isinstance(models_path, str)
+        or not models_path.strip()
+        or models_path.startswith("${")
+    ):
+        raise ValueError(
+            "Config path 'models' must be a "
+            "resolved non-empty string."
+        )
+
+    return models_path
+
+
+def _publish_promoted_release(
+    *,
+    pipeline: TrainingPipeline,
+    tracked_result: TrackedPipelineResult,
+    candidate_result: CandidateLifecycleResult,
+) -> PublishedServingRelease | None:
+    """Publish a release only for a promoted champion."""
+
+    promotion = candidate_result.promotion
+
+    if (
+        promotion is None
+        or not promotion.decision.promote
+    ):
+        return None
+
+    pipeline_result = tracked_result.pipeline
+
+    release_input = build_serving_release_input(
+        provider=(
+            pipeline.release_input_provider
+        ),
+        training_result=(
+            pipeline_result.training
+        ),
+        evaluation_result=(
+            pipeline_result.evaluation
+        ),
+        config=pipeline.config,
+    )
+
+    return publish_serving_release(
+        models_path=_models_path(
+            pipeline.config
+        ),
+        registration=(
+            candidate_result.registration
+        ),
+        promotion=promotion,
+        task_type=release_input.task_type,
+        model_type=release_input.model_type,
+        sources=release_input.sources,
+        metadata=release_input.metadata,
+        dataset_version=(
+            release_input.dataset_version
+        ),
+        config_hash=(
+            release_input.config_hash
+        ),
+        git_commit=release_input.git_commit,
+    )
 
 
 @flow(
@@ -93,8 +188,15 @@ def run_prefect_model_lifecycle(
         )
     )
 
+    serving_release = _publish_promoted_release(
+        pipeline=pipeline,
+        tracked_result=tracked_result,
+        candidate_result=candidate_result,
+    )
+
     return PrefectTrainingLifecycleResult(
         pipeline=tracked_result,
         model_artifact=model_artifact,
         candidate=candidate_result,
+        serving_release=serving_release,
     )
