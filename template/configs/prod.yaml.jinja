@@ -24,3 +24,14 @@ tracking:
   mlflow_tracking_uri: "${MLFLOW_TRACKING_URI}"
   experiment_name: "{{ project_slug }}-prod"
   model_name: "{{ project_slug }}-model-prod"
+  promotion:
+{% if task_type == "classification" %}
+    metric_name: accuracy
+    direction: maximize
+    minimum_improvement: 0.01
+{% elif task_type == "forecasting" %}
+    metric_name: rmse
+    direction: minimize
+    minimum_improvement: 0.0
+{% endif %}
+    allow_initial_champion: true
