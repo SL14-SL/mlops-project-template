@@ -2,7 +2,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from mlflow.exceptions import MlflowException
-from mlflow.protos.databricks_pb2 import INTERNAL_ERROR, RESOURCE_DOES_NOT_EXIST
+from mlflow.protos.databricks_pb2 import (
+    INTERNAL_ERROR,
+    INVALID_PARAMETER_VALUE,
+    RESOURCE_DOES_NOT_EXIST,
+)
 
 from {{ package_name }}.tracking.promotion import (
     MetricDirection,
@@ -206,3 +210,52 @@ def test_candidate_rejected_by_quality_gate_is_rejected() -> None:
             policy=POLICY,
             config=CONFIG,
         )
+
+@patch(
+    "{{ package_name }}.tracking.promotion_service."
+    "promote_to_champion"
+)
+@patch(
+    "{{ package_name }}.tracking.promotion_service."
+    "MlflowClient"
+)
+def test_first_candidate_handles_real_mlflow_alias_error(
+    client_class: MagicMock,
+    promote_to_champion: MagicMock,
+) -> None:
+    client = MagicMock()
+    client.get_model_version_by_alias.side_effect = (
+        MlflowException(
+            (
+                "Registered model alias "
+                "champion not found."
+            ),
+            error_code=(
+                INVALID_PARAMETER_VALUE
+            ),
+        )
+    )
+    client_class.return_value = client
+
+    assignment = MagicMock()
+    promote_to_champion.return_value = (
+        assignment
+    )
+
+    outcome = evaluate_and_promote_candidate(
+        registration=build_registration(),
+        evaluation=build_evaluation(),
+        policy=POLICY,
+        config=CONFIG,
+    )
+
+    assert outcome.decision.promote is True
+    assert (
+        outcome.previous_champion_version
+        is None
+    )
+    assert (
+        outcome.champion_assignment
+        is assignment
+    )
+    promote_to_champion.assert_called_once()

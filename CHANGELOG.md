@@ -46,6 +46,7 @@ The template follows Semantic Versioning.
 - automatic serving-release publication after successful champion promotion
 - champion-alias restoration after failed serving-release publication
 - automatic champion restoration when serving-release publication fails
+- end-to-end integration test from real MLflow run to active serving release
 
 ### Changed
 

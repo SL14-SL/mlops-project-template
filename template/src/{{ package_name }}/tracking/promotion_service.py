@@ -4,7 +4,11 @@ from typing import Any
 
 from mlflow import MlflowClient
 from mlflow.exceptions import MlflowException
-from mlflow.protos.databricks_pb2 import RESOURCE_DOES_NOT_EXIST, ErrorCode
+from mlflow.protos.databricks_pb2 import (
+    INVALID_PARAMETER_VALUE,
+    RESOURCE_DOES_NOT_EXIST,
+    ErrorCode,
+)
 
 from ..training.contracts import EvaluationResult
 from .aliases import AliasAssignment, promote_to_champion
@@ -26,17 +30,43 @@ class PromotionOutcome:
     champion_assignment: AliasAssignment | None
 
 
-def _is_missing_alias_error(error: MlflowException) -> bool:
-    """Return whether MLflow reports a missing registry alias."""
+def _matches_error_code(
+    error: MlflowException,
+    expected_code: int,
+) -> bool:
+    """Match numeric and string MLflow error codes."""
 
-    missing_error_name = ErrorCode.Name(
-        RESOURCE_DOES_NOT_EXIST
+    expected_name = ErrorCode.Name(
+        expected_code
     )
 
     return error.error_code in {
-        RESOURCE_DOES_NOT_EXIST,
-        missing_error_name,
+        expected_code,
+        expected_name,
     }
+
+
+def _is_missing_alias_error(
+    error: MlflowException,
+) -> bool:
+    """Return whether MLflow reports a missing registry alias."""
+
+    if _matches_error_code(
+        error,
+        RESOURCE_DOES_NOT_EXIST,
+    ):
+        return True
+
+    message = str(error).lower()
+
+    return (
+        _matches_error_code(
+            error,
+            INVALID_PARAMETER_VALUE,
+        )
+        and "alias" in message
+        and "not found" in message
+    )
 
 
 def _load_champion_metrics(
