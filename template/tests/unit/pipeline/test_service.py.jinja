@@ -23,6 +23,7 @@ def build_pipeline(
         trainer=MagicMock(),
         evaluator=MagicMock(),
         model_logger=MagicMock(),
+        release_input_provider=MagicMock(),
         config={
             "environment": "test",
         },
@@ -131,6 +132,7 @@ def test_factory_builds_configured_service(
     trainer = MagicMock()
     evaluator = MagicMock()
     model_logger = MagicMock()
+    release_input_provider = MagicMock()
     config = {
         "paths": {
             "artifacts": "artifacts",
@@ -144,6 +146,9 @@ def test_factory_builds_configured_service(
         trainer=trainer,
         evaluator=evaluator,
         model_logger=model_logger,
+        release_input_provider=(
+            release_input_provider
+        ),
         config=config,
     )
 
@@ -161,6 +166,10 @@ def test_factory_builds_configured_service(
     assert pipeline.config is config
     assert pipeline.run_repository is repository
     assert pipeline.model_logger is model_logger
+    assert (
+        pipeline.release_input_provider
+        is release_input_provider
+    )
 
     build_repository.assert_called_once_with(
         config
@@ -175,6 +184,7 @@ def test_factory_uses_real_repository() -> None:
         trainer=MagicMock(),
         evaluator=MagicMock(),
         model_logger=MagicMock(),
+        release_input_provider=MagicMock(),
         config={
             "paths": {
                 "artifacts": "artifacts",

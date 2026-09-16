@@ -42,6 +42,7 @@ The template follows Semantic Versioning.
 - local and GCS-compatible serving artifact publisher with checksums and cleanup
 - validated serving-release publication with atomic active-pointer activation
 - project-specific serving-release input provider contract
+- serving-release input provider dependency for configured training pipelines
 
 ### Changed
 

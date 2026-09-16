@@ -7,6 +7,9 @@ from ..data.contracts import (
     DatasetSplitter,
     FeatureBuilder,
 )
+from ..inference.releases.input_provider import (
+    ServingReleaseInputProvider,
+)
 from ..tracking.model_artifact import ModelArtifactLogger
 from ..training.contracts import (
     ModelEvaluator,
@@ -29,6 +32,7 @@ class TrainingPipeline:
     trainer: ModelTrainer
     evaluator: ModelEvaluator
     model_logger: ModelArtifactLogger
+    release_input_provider: ServingReleaseInputProvider
     config: Mapping[str, Any]
     run_repository: PipelineRunRepository
 
