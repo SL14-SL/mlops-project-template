@@ -84,3 +84,17 @@ prefect-logs: ## Follow Prefect server logs
 .PHONY: prefect-down
 prefect-down: ## Stop and remove the Prefect stack
 	$(COMPOSE) --profile orchestration down
+
+.PHONY: prefect-pool
+prefect-pool: ## Create or update the local Prefect process pool
+	$(UV) run prefect work-pool create --type process --overwrite local-process-pool
+
+
+.PHONY: prefect-deploy
+prefect-deploy: ## Register all deployments from prefect.yaml
+	$(UV) run prefect deploy --all
+
+
+.PHONY: prefect-worker
+prefect-worker: ## Start a local worker for training deployments
+	$(UV) run prefect worker start --pool local-process-pool

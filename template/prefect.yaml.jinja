@@ -1,0 +1,24 @@
+prefect-version: null
+name: {{ project_slug }}
+
+build: []
+push: []
+pull: []
+
+deployments:
+  - name: local-training
+    version: null
+    tags:
+      - local
+      - training
+      - {{ task_type }}
+    description: >-
+      Local {{ task_type }} training deployment for
+      {{ project_name }}.
+    entrypoint: >-
+      {{ package_name }}.orchestration.training_flow.training_flow
+    parameters: {}
+    work_pool:
+      name: local-process-pool
+      work_queue_name: default
+      job_variables: {}
