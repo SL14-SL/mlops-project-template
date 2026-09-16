@@ -16,6 +16,7 @@ from ..tracking.mlflow import (
     log_training_result,
     start_training_run,
 )
+from ..tracking.model_artifact import LoggedModelArtifact, log_model_artifact
 from .prefect_adapter import (
     run_prefect_training_pipeline,
 )
@@ -26,6 +27,7 @@ class PrefectTrainingLifecycleResult:
     """Complete result of training and model finalization."""
 
     pipeline: TrackedPipelineResult
+    model_artifact: LoggedModelArtifact
     candidate: CandidateLifecycleResult
 
 
@@ -69,6 +71,14 @@ def run_prefect_model_lifecycle(
         log_evaluation_result(
             pipeline_result.evaluation
         )
+        model_artifact = log_model_artifact(
+            logger=pipeline.model_logger,
+            training_result=(
+                pipeline_result.training
+            ),
+            config=pipeline.config,
+            artifact_path=artifact_path,
+        )
 
     candidate_result = (
         finalize_configured_model_candidate(
@@ -85,5 +95,6 @@ def run_prefect_model_lifecycle(
 
     return PrefectTrainingLifecycleResult(
         pipeline=tracked_result,
+        model_artifact=model_artifact,
         candidate=candidate_result,
     )

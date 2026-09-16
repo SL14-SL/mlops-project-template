@@ -24,9 +24,16 @@ def build_pipeline() -> MagicMock:
             "model_name": "lifecycle-test-model",
         }
     }
+    pipeline.model_logger = MagicMock()
+
     return pipeline
 
 
+@patch(
+    "{{ package_name }}.orchestration."
+    "lifecycle_adapter."
+    "log_model_artifact"
+)
 @patch(
     "{{ package_name }}.orchestration."
     "lifecycle_adapter."
@@ -58,6 +65,7 @@ def test_runs_complete_model_lifecycle(
     log_training_result: MagicMock,
     log_evaluation_result: MagicMock,
     finalize_candidate: MagicMock,
+    log_model_artifact: MagicMock,
 ) -> None:
     pipeline = build_pipeline()
 
@@ -68,6 +76,7 @@ def test_runs_complete_model_lifecycle(
     tracked_result = MagicMock()
     training_result = MagicMock()
     evaluation_result = MagicMock()
+
     tracked_result.pipeline.training = (
         training_result
     )
@@ -79,6 +88,11 @@ def test_runs_complete_model_lifecycle(
     )
 
     candidate_result = MagicMock()
+    model_artifact = MagicMock()
+
+    log_model_artifact.return_value = (
+        model_artifact
+    )
     finalize_candidate.return_value = (
         candidate_result
     )
@@ -94,6 +108,10 @@ def test_runs_complete_model_lifecycle(
         PrefectTrainingLifecycleResult,
     )
     assert result.pipeline is tracked_result
+    assert (
+        result.model_artifact
+        is model_artifact
+    )
     assert result.candidate is candidate_result
 
     start_training_run.assert_called_once_with(
@@ -111,6 +129,12 @@ def test_runs_complete_model_lifecycle(
     log_evaluation_result.assert_called_once_with(
         evaluation_result
     )
+    log_model_artifact.assert_called_once_with(
+        logger=pipeline.model_logger,
+        training_result=training_result,
+        config=pipeline.config,
+        artifact_path="model",
+    )
     finalize_candidate.assert_called_once_with(
         training_result=training_result,
         evaluation_result=evaluation_result,
@@ -119,6 +143,11 @@ def test_runs_complete_model_lifecycle(
     )
 
 
+@patch(
+    "{{ package_name }}.orchestration."
+    "lifecycle_adapter."
+    "log_model_artifact"
+)
 @patch(
     "{{ package_name }}.orchestration."
     "lifecycle_adapter."
@@ -150,48 +179,80 @@ def test_preserves_explicit_pipeline_run_id(
     log_training_result: MagicMock,
     log_evaluation_result: MagicMock,
     finalize_candidate: MagicMock,
+    log_model_artifact: MagicMock,
 ) -> None:
     pipeline = build_pipeline()
 
     start_training_run.return_value.__enter__.return_value = (
         "mlflow-run-2"
     )
+
     tracked_result = MagicMock()
+    training_result = MagicMock()
+    evaluation_result = MagicMock()
+
     tracked_result.pipeline.training = (
-        MagicMock()
+        training_result
     )
     tracked_result.pipeline.evaluation = (
-        MagicMock()
+        evaluation_result
     )
     run_prefect_training_pipeline.return_value = (
         tracked_result
     )
+
+    model_artifact = MagicMock()
+    candidate_result = MagicMock()
+
+    log_model_artifact.return_value = (
+        model_artifact
+    )
     finalize_candidate.return_value = (
-        MagicMock()
+        candidate_result
     )
 
-    run_prefect_model_lifecycle.fn(
+    result = run_prefect_model_lifecycle.fn(
         pipeline=pipeline,
         pipeline_run_id="pipeline-run-123",
         artifact_path="trained/model",
     )
 
+    assert result.pipeline is tracked_result
+    assert (
+        result.model_artifact
+        is model_artifact
+    )
+    assert result.candidate is candidate_result
+
     run_prefect_training_pipeline.assert_called_once_with(
         pipeline=pipeline,
         run_id="pipeline-run-123",
     )
+    log_training_result.assert_called_once_with(
+        training_result
+    )
+    log_evaluation_result.assert_called_once_with(
+        evaluation_result
+    )
+    log_model_artifact.assert_called_once_with(
+        logger=pipeline.model_logger,
+        training_result=training_result,
+        config=pipeline.config,
+        artifact_path="trained/model",
+    )
     finalize_candidate.assert_called_once_with(
-        training_result=(
-            tracked_result.pipeline.training
-        ),
-        evaluation_result=(
-            tracked_result.pipeline.evaluation
-        ),
+        training_result=training_result,
+        evaluation_result=evaluation_result,
         config=pipeline.config,
         artifact_path="trained/model",
     )
 
 
+@patch(
+    "{{ package_name }}.orchestration."
+    "lifecycle_adapter."
+    "log_model_artifact"
+)
 @patch(
     "{{ package_name }}.orchestration."
     "lifecycle_adapter."
@@ -223,6 +284,7 @@ def test_failed_pipeline_stops_model_lifecycle(
     log_training_result: MagicMock,
     log_evaluation_result: MagicMock,
     finalize_candidate: MagicMock,
+    log_model_artifact: MagicMock,
 ) -> None:
     pipeline = build_pipeline()
 
@@ -243,4 +305,5 @@ def test_failed_pipeline_stops_model_lifecycle(
 
     log_training_result.assert_not_called()
     log_evaluation_result.assert_not_called()
+    log_model_artifact.assert_not_called()
     finalize_candidate.assert_not_called()

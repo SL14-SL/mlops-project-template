@@ -37,6 +37,7 @@ The template follows Semantic Versioning.
 - public MLflow run-context helper for project-specific model trainers
 - project-specific MLflow model artifact logging contract
 - model artifact logger dependency for configured training pipelines
+- model artifact logging inside the active MLflow training run
 
 ### Changed
 
