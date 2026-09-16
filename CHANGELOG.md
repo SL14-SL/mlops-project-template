@@ -17,6 +17,7 @@ The template follows Semantic Versioning.
 - local and GCS-compatible persistence for pipeline lifecycle records
 - configuration-based repository for pipeline lifecycle records
 - configured training pipeline service with automatic lifecycle persistence
+- thin Prefect adapter for configured training pipelines
 
 ### Changed
 
