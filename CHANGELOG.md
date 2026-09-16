@@ -26,6 +26,7 @@ The template follows Semantic Versioning.
 - shared MLflow training run and result logging adapter
 - approval-gated MLflow model registration
 - explicit challenger assignment and champion promotion for MLflow models
+- direction-aware metric gate for champion promotion
 
 ### Changed
 
