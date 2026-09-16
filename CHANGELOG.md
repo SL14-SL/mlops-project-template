@@ -32,6 +32,7 @@ The template follows Semantic Versioning.
 - environment-specific promotion policies for classification and forecasting
 - configuration-driven model lifecycle entrypoint
 - MLflow logging for model evaluation metrics and approval decisions
+- Prefect adapter for the complete MLflow model lifecycle
 
 ### Changed
 
