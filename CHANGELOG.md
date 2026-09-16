@@ -16,6 +16,7 @@ The template follows Semantic Versioning.
 - versioned JSON serialization for pipeline lifecycle records
 - local and GCS-compatible persistence for pipeline lifecycle records
 - configuration-based repository for pipeline lifecycle records
+- configured training pipeline service with automatic lifecycle persistence
 
 ### Changed
 

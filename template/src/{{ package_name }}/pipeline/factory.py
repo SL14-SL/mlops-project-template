@@ -1,7 +1,17 @@
 from collections.abc import Mapping
 from typing import Any
 
+from ..data.contracts import (
+    DataIngestor,
+    DatasetSplitter,
+    FeatureBuilder,
+)
+from ..training.contracts import (
+    ModelEvaluator,
+    ModelTrainer,
+)
 from .repository import PipelineRunRepository
+from .service import TrainingPipeline
 
 
 def _require_paths(
@@ -62,3 +72,28 @@ def build_pipeline_run_repository(
         )
 
     return PipelineRunRepository(root_path)
+
+
+def build_training_pipeline(
+    *,
+    ingestor: DataIngestor,
+    feature_builder: FeatureBuilder,
+    splitter: DatasetSplitter,
+    trainer: ModelTrainer,
+    evaluator: ModelEvaluator,
+    config: Mapping[str, Any],
+) -> TrainingPipeline:
+    """Build a training pipeline with lifecycle persistence."""
+    return TrainingPipeline(
+        ingestor=ingestor,
+        feature_builder=feature_builder,
+        splitter=splitter,
+        trainer=trainer,
+        evaluator=evaluator,
+        config=config,
+        run_repository=(
+            build_pipeline_run_repository(
+                config
+            )
+        ),
+    )
