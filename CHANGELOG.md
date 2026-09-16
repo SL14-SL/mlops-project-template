@@ -19,6 +19,7 @@ The template follows Semantic Versioning.
 - configured training pipeline service with automatic lifecycle persistence
 - thin Prefect adapter for configured training pipelines
 - explicit project-specific training pipeline extension point
+- executable project-specific Prefect training flow entrypoint
 
 ### Changed
 
