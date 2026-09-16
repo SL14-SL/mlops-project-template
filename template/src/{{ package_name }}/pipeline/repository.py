@@ -50,7 +50,7 @@ def _validate_run_id(
         )
 
 
-class PipelineRunStore:
+class PipelineRunRepository:
     """Persist pipeline lifecycle states as JSON documents."""
 
     def __init__(
@@ -62,7 +62,7 @@ class PipelineRunStore:
             or not root_path.strip()
         ):
             raise ValueError(
-                "Pipeline run store root path "
+                "Pipeline run repository root path "
                 "must not be empty."
             )
 
@@ -92,7 +92,7 @@ class PipelineRunStore:
         """Persist the latest state of a pipeline run."""
         if not isinstance(run, PipelineRun):
             raise TypeError(
-                "Pipeline run store can only save PipelineRun."
+                "Pipeline run repository can only save PipelineRun."
             )
 
         path = self.path_for(run.run_id)

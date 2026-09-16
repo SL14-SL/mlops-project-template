@@ -1,12 +1,12 @@
 import pytest
 
 from {{ package_name }}.pipeline.factory import (
-    build_pipeline_run_store,
+    build_pipeline_run_repository,
 )
 
 
 def test_factory_uses_artifacts_fallback() -> None:
-    run_store = build_pipeline_run_store(
+    repository = build_pipeline_run_repository(
         {
             "paths": {
                 "artifacts": "artifacts",
@@ -14,13 +14,13 @@ def test_factory_uses_artifacts_fallback() -> None:
         }
     )
 
-    assert run_store.root_path == (
+    assert repository.root_path == (
         "artifacts/pipeline-runs"
     )
 
 
 def test_factory_supports_gcs_artifacts() -> None:
-    run_store = build_pipeline_run_store(
+    repository = build_pipeline_run_repository(
         {
             "paths": {
                 "artifacts": (
@@ -30,14 +30,14 @@ def test_factory_supports_gcs_artifacts() -> None:
         }
     )
 
-    assert run_store.root_path == (
+    assert repository.root_path == (
         "gs://example-bucket/"
         "artifacts/pipeline-runs"
     )
 
 
 def test_explicit_pipeline_path_overrides_fallback() -> None:
-    run_store = build_pipeline_run_store(
+    repository = build_pipeline_run_repository(
         {
             "paths": {
                 "artifacts": "artifacts",
@@ -48,13 +48,13 @@ def test_explicit_pipeline_path_overrides_fallback() -> None:
         }
     )
 
-    assert run_store.root_path == (
+    assert repository.root_path == (
         "custom/pipeline-history"
     )
 
 
 def test_explicit_gcs_pipeline_path_is_supported() -> None:
-    run_store = build_pipeline_run_store(
+    repository = build_pipeline_run_repository(
         {
             "paths": {
                 "artifacts": "artifacts",
@@ -66,13 +66,13 @@ def test_explicit_gcs_pipeline_path_is_supported() -> None:
         }
     )
 
-    assert run_store.root_path == (
+    assert repository.root_path == (
         "gs://example-bucket/pipeline-history"
     )
 
 
 def test_trailing_slash_is_removed() -> None:
-    run_store = build_pipeline_run_store(
+    repository = build_pipeline_run_repository(
         {
             "paths": {
                 "artifacts": "artifacts/",
@@ -80,7 +80,7 @@ def test_trailing_slash_is_removed() -> None:
         }
     )
 
-    assert run_store.root_path == (
+    assert repository.root_path == (
         "artifacts/pipeline-runs"
     )
 
@@ -90,7 +90,7 @@ def test_factory_requires_paths_section() -> None:
         ValueError,
         match="'paths' section",
     ):
-        build_pipeline_run_store({})
+        build_pipeline_run_repository({})
 
 
 @pytest.mark.parametrize(
@@ -108,7 +108,7 @@ def test_paths_section_must_be_mapping(
         ValueError,
         match="'paths' section",
     ):
-        build_pipeline_run_store(
+        build_pipeline_run_repository(
             {
                 "paths": paths,
             }
@@ -132,7 +132,7 @@ def test_fallback_requires_valid_artifacts_path(
         ValueError,
         match="'artifacts'",
     ):
-        build_pipeline_run_store(
+        build_pipeline_run_repository(
             {
                 "paths": {
                     "artifacts": artifacts_path,
@@ -157,7 +157,7 @@ def test_explicit_pipeline_path_must_be_valid(
         ValueError,
         match="'pipeline_runs'",
     ):
-        build_pipeline_run_store(
+        build_pipeline_run_repository(
             {
                 "paths": {
                     "artifacts": "artifacts",

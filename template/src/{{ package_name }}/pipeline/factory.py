@@ -1,7 +1,7 @@
 from collections.abc import Mapping
 from typing import Any
 
-from .store import PipelineRunStore
+from .repository import PipelineRunRepository
 
 
 def _require_paths(
@@ -38,10 +38,10 @@ def _require_path(
     return value.rstrip("/")
 
 
-def build_pipeline_run_store(
+def build_pipeline_run_repository(
     config: Mapping[str, Any],
-) -> PipelineRunStore:
-    """Build the configured pipeline lifecycle store."""
+) -> PipelineRunRepository:
+    """Build the configured pipeline lifecycle repository."""
     paths = _require_paths(config)
     configured_path = paths.get(
         "pipeline_runs"
@@ -61,4 +61,4 @@ def build_pipeline_run_store(
             f"{artifacts_path}/pipeline-runs"
         )
 
-    return PipelineRunStore(root_path)
+    return PipelineRunRepository(root_path)
