@@ -60,15 +60,17 @@ class PyFuncModelArtifactLogger:
         *,
         artifact_path: str,
         config: Mapping[str, Any],
-    ) -> None:
+    ) -> str:
         del config
 
-        mlflow.pyfunc.log_model(
+        model_info = mlflow.pyfunc.log_model(
             name=artifact_path,
             python_model=(
                 training_result.model
             ),
         )
+
+        return model_info.model_uri
 
 
 {% if task_type == "classification" %}
@@ -248,8 +250,9 @@ def test_real_mlflow_to_serving_release(
         )
 
     assert (
-        logged_artifact.model_uri
-        == f"runs:/{run_id}/model"
+        logged_artifact.model_uri.startswith(
+            "models:/m-"
+        )
     )
 
     policy = PromotionPolicy(

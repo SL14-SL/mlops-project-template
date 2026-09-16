@@ -47,6 +47,7 @@ The template follows Semantic Versioning.
 - champion-alias restoration after failed serving-release publication
 - automatic champion restoration when serving-release publication fails
 - end-to-end integration test from real MLflow run to active serving release
+- MLflow 3 logged-model URI support for model artifact adapters
 
 ### Changed
 

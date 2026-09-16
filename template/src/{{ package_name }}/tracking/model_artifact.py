@@ -16,8 +16,8 @@ class ModelArtifactLogger(Protocol):
         *,
         artifact_path: str,
         config: Mapping[str, Any],
-    ) -> None:
-        """Log the model under the requested artifact path."""
+    ) -> str:
+        """Log the model and return its MLflow model URI."""
         ...
 
 
@@ -88,17 +88,23 @@ def log_model_artifact(
         artifact_path
     )
 
-    logger.log_model(
+    model_uri = logger.log_model(
         training_result,
         artifact_path=validated_path,
         config=config,
     )
 
+    if (
+        not isinstance(model_uri, str)
+        or not model_uri.strip()
+    ):
+        raise ValueError(
+            "Model artifact logger must return "
+            "a non-empty MLflow model URI."
+        )
+
     return LoggedModelArtifact(
         run_id=training_result.run_id,
         artifact_path=validated_path,
-        model_uri=(
-            f"runs:/{training_result.run_id}/"
-            f"{validated_path}"
-        ),
+        model_uri=model_uri,
     )

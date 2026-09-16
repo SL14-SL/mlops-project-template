@@ -13,7 +13,13 @@ from {{ package_name }}.training.contracts import (
 
 
 class RecordingModelLogger:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        model_uri: str = (
+            "models:/m-logged-model"
+        ),
+    ) -> None:
+        self.model_uri = model_uri
         self.calls: list[
             tuple[
                 TrainingResult,
@@ -28,7 +34,7 @@ class RecordingModelLogger:
         *,
         artifact_path: str,
         config: Mapping[str, Any],
-    ) -> None:
+    ) -> str:
         self.calls.append(
             (
                 training_result,
@@ -37,9 +43,27 @@ class RecordingModelLogger:
             )
         )
 
+        return self.model_uri
+
 
 class InvalidLogger:
     pass
+
+class EmptyUriLogger:
+    def log_model(
+        self,
+        training_result: TrainingResult,
+        *,
+        artifact_path: str,
+        config: Mapping[str, Any],
+    ) -> str:
+        del (
+            training_result,
+            artifact_path,
+            config,
+        )
+
+        return ""
 
 
 def build_training_result() -> TrainingResult:
@@ -68,7 +92,7 @@ def test_logs_model_through_adapter() -> None:
     assert result == LoggedModelArtifact(
         run_id="run-123",
         artifact_path="model",
-        model_uri="runs:/run-123/model",
+        model_uri="models:/m-logged-model",
     )
     assert logger.calls == [
         (
@@ -93,7 +117,7 @@ def test_supports_custom_artifact_path() -> None:
 
     assert (
         result.model_uri
-        == "runs:/run-123/trained/model"
+        == "models:/m-logged-model"
     )
     assert logger.calls[0][1] == "trained/model"
 
@@ -157,3 +181,17 @@ def test_requires_training_result() -> None:
         )
 
     assert logger.calls == []
+
+
+def test_requires_logger_model_uri() -> None:
+    with pytest.raises(
+        ValueError,
+        match="non-empty MLflow model URI",
+    ):
+        log_model_artifact(
+            logger=EmptyUriLogger(),
+            training_result=(
+                build_training_result()
+            ),
+            config={},
+        )
