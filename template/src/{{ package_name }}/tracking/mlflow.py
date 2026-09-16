@@ -111,6 +111,10 @@ def _active_run_id() -> str:
 
     return active_run.info.run_id
 
+def get_active_training_run_id() -> str:
+    """Return the active MLflow training-run ID."""
+
+    return _active_run_id()
 
 def log_training_result(
     result: TrainingResult,

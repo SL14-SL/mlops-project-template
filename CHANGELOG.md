@@ -34,6 +34,7 @@ The template follows Semantic Versioning.
 - MLflow logging for model evaluation metrics and approval decisions
 - Prefect adapter for the complete MLflow model lifecycle
 - executable Prefect training flow for the complete model lifecycle
+- public MLflow run-context helper for project-specific model trainers
 
 ### Changed
 
