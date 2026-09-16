@@ -20,6 +20,7 @@ The template follows Semantic Versioning.
 - thin Prefect adapter for configured training pipelines
 - explicit project-specific training pipeline extension point
 - executable project-specific Prefect training flow entrypoint
+- optional local Prefect server through a Docker Compose profile
 
 ### Changed
 

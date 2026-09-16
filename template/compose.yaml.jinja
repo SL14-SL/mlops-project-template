@@ -27,3 +27,38 @@ services:
       timeout: 5s
       start_period: 15s
       retries: 3
+
+  prefect-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: {{project_slug}}-api:${IMAGE_TAG:-local}
+    profiles:
+      - orchestration
+    init: true
+    restart: unless-stopped
+    command:
+      - prefect
+      - server
+      - start
+      - --host
+      - 0.0.0.0
+      - --port
+      - "4200"
+    ports:
+      - "${PREFECT_PORT:-4200}:4200"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen(
+          'http://127.0.0.1:4200/api/health',
+          timeout=3
+          )
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5

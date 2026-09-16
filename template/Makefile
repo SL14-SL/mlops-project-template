@@ -65,3 +65,22 @@ api-down: ## Stop and remove the local Compose stack
 
 .PHONY: api-restart
 api-restart: api-down api-up ## Rebuild and restart the API
+
+.PHONY: prefect-up
+prefect-up: ## Build and start the local Prefect server
+	$(COMPOSE) --profile orchestration up --detach --build prefect-server
+
+
+.PHONY: prefect-ps
+prefect-ps: ## Show the Prefect server status
+	$(COMPOSE) --profile orchestration ps prefect-server
+
+
+.PHONY: prefect-logs
+prefect-logs: ## Follow Prefect server logs
+	$(COMPOSE) --profile orchestration logs --follow prefect-server
+
+
+.PHONY: prefect-down
+prefect-down: ## Stop and remove the Prefect stack
+	$(COMPOSE) --profile orchestration down
