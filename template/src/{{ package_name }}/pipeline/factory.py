@@ -6,6 +6,7 @@ from ..data.contracts import (
     DatasetSplitter,
     FeatureBuilder,
 )
+from ..tracking.model_artifact import ModelArtifactLogger
 from ..training.contracts import (
     ModelEvaluator,
     ModelTrainer,
@@ -81,15 +82,18 @@ def build_training_pipeline(
     splitter: DatasetSplitter,
     trainer: ModelTrainer,
     evaluator: ModelEvaluator,
+    model_logger: ModelArtifactLogger,
     config: Mapping[str, Any],
 ) -> TrainingPipeline:
     """Build a training pipeline with lifecycle persistence."""
+
     return TrainingPipeline(
         ingestor=ingestor,
         feature_builder=feature_builder,
         splitter=splitter,
         trainer=trainer,
         evaluator=evaluator,
+        model_logger=model_logger,
         config=config,
         run_repository=(
             build_pipeline_run_repository(

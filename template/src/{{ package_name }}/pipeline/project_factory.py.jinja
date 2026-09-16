@@ -13,8 +13,9 @@ def build_project_training_pipeline(
     raise NotImplementedError(
         "Implement the project-specific {{ task_type }} "
         "training pipeline by providing a DataIngestor, "
-        "FeatureBuilder, DatasetSplitter, ModelTrainer "
-        "and ModelEvaluator. The ModelTrainer must use "
+        "FeatureBuilder, DatasetSplitter, ModelTrainer, "
+        "ModelEvaluator and ModelArtifactLogger. The "
+        "ModelTrainer must use "
         "get_active_training_run_id() for the "
         "TrainingResult run_id."
     )

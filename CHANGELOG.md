@@ -36,6 +36,7 @@ The template follows Semantic Versioning.
 - executable Prefect training flow for the complete model lifecycle
 - public MLflow run-context helper for project-specific model trainers
 - project-specific MLflow model artifact logging contract
+- model artifact logger dependency for configured training pipelines
 
 ### Changed
 

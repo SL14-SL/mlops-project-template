@@ -22,6 +22,7 @@ def build_pipeline(
         splitter=MagicMock(),
         trainer=MagicMock(),
         evaluator=MagicMock(),
+        model_logger=MagicMock(),
         config={
             "environment": "test",
         },
@@ -129,6 +130,7 @@ def test_factory_builds_configured_service(
     splitter = MagicMock()
     trainer = MagicMock()
     evaluator = MagicMock()
+    model_logger = MagicMock()
     config = {
         "paths": {
             "artifacts": "artifacts",
@@ -141,6 +143,7 @@ def test_factory_builds_configured_service(
         splitter=splitter,
         trainer=trainer,
         evaluator=evaluator,
+        model_logger=model_logger,
         config=config,
     )
 
@@ -157,6 +160,7 @@ def test_factory_builds_configured_service(
     assert pipeline.evaluator is evaluator
     assert pipeline.config is config
     assert pipeline.run_repository is repository
+    assert pipeline.model_logger is model_logger
 
     build_repository.assert_called_once_with(
         config
@@ -170,6 +174,7 @@ def test_factory_uses_real_repository() -> None:
         splitter=MagicMock(),
         trainer=MagicMock(),
         evaluator=MagicMock(),
+        model_logger=MagicMock(),
         config={
             "paths": {
                 "artifacts": "artifacts",

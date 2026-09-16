@@ -7,6 +7,7 @@ from ..data.contracts import (
     DatasetSplitter,
     FeatureBuilder,
 )
+from ..tracking.model_artifact import ModelArtifactLogger
 from ..training.contracts import (
     ModelEvaluator,
     ModelTrainer,
@@ -27,6 +28,7 @@ class TrainingPipeline:
     splitter: DatasetSplitter
     trainer: ModelTrainer
     evaluator: ModelEvaluator
+    model_logger: ModelArtifactLogger
     config: Mapping[str, Any]
     run_repository: PipelineRunRepository
 
@@ -36,6 +38,7 @@ class TrainingPipeline:
         run_id: str | None = None,
     ) -> TrackedPipelineResult:
         """Execute the configured training pipeline."""
+
         return run_tracked_training_pipeline(
             ingestor=self.ingestor,
             feature_builder=self.feature_builder,
