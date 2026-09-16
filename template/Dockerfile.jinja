@@ -39,6 +39,9 @@ RUN useradd \
     --uid 10001 \
     appuser
 
+RUN mkdir -p /app/runtime/mlflow \
+    && chown -R appuser:appuser /app/runtime
+    
 WORKDIR /app
 
 COPY --from=builder \

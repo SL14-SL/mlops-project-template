@@ -98,3 +98,22 @@ prefect-deploy: ## Register all deployments from prefect.yaml
 .PHONY: prefect-worker
 prefect-worker: ## Start a local worker for training deployments
 	$(UV) run prefect worker start --pool local-process-pool
+
+.PHONY: mlflow-up
+mlflow-up: ## Build and start the local MLflow server
+	$(COMPOSE) --profile tracking up --detach --build mlflow
+
+
+.PHONY: mlflow-ps
+mlflow-ps: ## Show the MLflow server status
+	$(COMPOSE) --profile tracking ps mlflow
+
+
+.PHONY: mlflow-logs
+mlflow-logs: ## Follow MLflow server logs
+	$(COMPOSE) --profile tracking logs --follow mlflow
+
+
+.PHONY: mlflow-down
+mlflow-down: ## Stop and remove the MLflow stack
+	$(COMPOSE) --profile tracking down

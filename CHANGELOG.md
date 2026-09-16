@@ -22,6 +22,7 @@ The template follows Semantic Versioning.
 - executable project-specific Prefect training flow entrypoint
 - optional local Prefect server through a Docker Compose profile
 - version-controlled local Prefect training deployment
+- optional persistent local MLflow tracking server
 
 ### Changed
 
