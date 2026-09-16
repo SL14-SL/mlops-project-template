@@ -38,6 +38,7 @@ The template follows Semantic Versioning.
 - project-specific MLflow model artifact logging contract
 - model artifact logger dependency for configured training pipelines
 - model artifact logging inside the active MLflow training run
+- immutable serving-release manifest builder for promoted champion models
 
 ### Changed
 
