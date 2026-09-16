@@ -11,6 +11,7 @@ from .aliases import (
     assign_challenger,
 )
 from .promotion import PromotionPolicy
+from .promotion_config import load_promotion_policy
 from .promotion_service import (
     PromotionOutcome,
     evaluate_and_promote_candidate,
@@ -70,4 +71,25 @@ def finalize_model_candidate(
         registration=registration,
         challenger_assignment=challenger_assignment,
         promotion=promotion,
+    )
+
+def finalize_configured_model_candidate(
+    *,
+    training_result: TrainingResult,
+    evaluation_result: EvaluationResult,
+    config: Mapping[str, Any],
+    artifact_path: str = "model",
+) -> CandidateLifecycleResult:
+    """Finalize a candidate using the configured promotion policy."""
+
+    promotion_policy = load_promotion_policy(
+        config
+    )
+
+    return finalize_model_candidate(
+        training_result=training_result,
+        evaluation_result=evaluation_result,
+        promotion_policy=promotion_policy,
+        config=config,
+        artifact_path=artifact_path,
     )

@@ -5,6 +5,7 @@ from {{ package_name }}.tracking.aliases import (
     ModelAlias,
 )
 from {{ package_name }}.tracking.lifecycle import (
+    finalize_configured_model_candidate,
     finalize_model_candidate,
 )
 from {{ package_name }}.tracking.promotion import (
@@ -206,6 +207,46 @@ def test_custom_artifact_path_is_forwarded(
     register_approved_model.assert_called_once_with(
         training_result=training_result,
         evaluation_result=evaluation_result,
+        config=CONFIG,
+        artifact_path="trained/model",
+    )
+
+@patch(
+    "{{ package_name }}.tracking.lifecycle."
+    "finalize_model_candidate"
+)
+@patch(
+    "{{ package_name }}.tracking.lifecycle."
+    "load_promotion_policy"
+)
+def test_configured_lifecycle_loads_policy(
+    load_promotion_policy: MagicMock,
+    finalize_model_candidate: MagicMock,
+) -> None:
+    training_result = build_training_result()
+    evaluation_result = build_approved_evaluation()
+    lifecycle_result = MagicMock()
+
+    load_promotion_policy.return_value = POLICY
+    finalize_model_candidate.return_value = (
+        lifecycle_result
+    )
+
+    result = finalize_configured_model_candidate(
+        training_result=training_result,
+        evaluation_result=evaluation_result,
+        config=CONFIG,
+        artifact_path="trained/model",
+    )
+
+    assert result is lifecycle_result
+    load_promotion_policy.assert_called_once_with(
+        CONFIG
+    )
+    finalize_model_candidate.assert_called_once_with(
+        training_result=training_result,
+        evaluation_result=evaluation_result,
+        promotion_policy=POLICY,
         config=CONFIG,
         artifact_path="trained/model",
     )

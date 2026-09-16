@@ -27,6 +27,10 @@ The template follows Semantic Versioning.
 - approval-gated MLflow model registration
 - explicit challenger assignment and champion promotion for MLflow models
 - direction-aware metric gate for champion promotion
+- MLflow-backed candidate-to-champion evaluation and conditional promotion
+- unified model candidate lifecycle for registration, challenger assignment and champion promotion
+- environment-specific promotion policies for classification and forecasting
+- configuration-driven model lifecycle entrypoint
 
 ### Changed
 
