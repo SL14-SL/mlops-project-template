@@ -95,6 +95,13 @@ def test_promoted_candidate_publishes_release(
     publish_release = MagicMock(
         return_value=published_release
     )
+    restore_champion = MagicMock()
+
+    monkeypatch.setattr(
+        lifecycle_adapter,
+        "restore_champion",
+        restore_champion,
+    )
 
     monkeypatch.setattr(
         lifecycle_adapter,
@@ -172,6 +179,7 @@ def test_promoted_candidate_publishes_release(
         config_hash="config-hash",
         git_commit="abc123",
     )
+    restore_champion.assert_not_called()
 
 
 def test_unpromoted_candidate_skips_release(
@@ -221,8 +229,14 @@ def test_promoted_release_requires_models_path(
 
     tracked_result = MagicMock()
     candidate_result = MagicMock()
+    candidate_result.registration = (
+        MagicMock()
+    )
     candidate_result.promotion.decision.promote = (
         True
+    )
+    candidate_result.promotion.previous_champion_version = (
+        "6"
     )
 
     release_input = MagicMock()
@@ -244,6 +258,13 @@ def test_promoted_release_requires_models_path(
         ),
     )
 
+    restore_champion = MagicMock()
+    monkeypatch.setattr(
+        lifecycle_adapter,
+        "restore_champion",
+        restore_champion,
+    )
+
     with pytest.raises(
         ValueError,
         match="Config path 'models'",
@@ -253,3 +274,262 @@ def test_promoted_release_requires_models_path(
             tracked_result=tracked_result,
             candidate_result=candidate_result,
         )
+
+    restore_champion.assert_called_once_with(
+        registration=(
+            candidate_result.registration
+        ),
+        previous_champion_version="6",
+        config=pipeline.config,
+    )
+
+def test_release_failure_restores_previous_champion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipeline = MagicMock(
+        spec=TrainingPipeline
+    )
+    pipeline.config = {
+        "paths": {
+            "models": "artifacts/models",
+        },
+        "tracking": {
+            "mlflow_tracking_uri": (
+                "http://localhost:5000"
+            ),
+        },
+    }
+    pipeline.release_input_provider = (
+        MagicMock()
+    )
+
+    tracked_result = MagicMock()
+    candidate_result = MagicMock()
+    candidate_result.registration = (
+        MagicMock()
+    )
+
+    promotion = MagicMock()
+    promotion.decision.promote = True
+    promotion.previous_champion_version = "6"
+    candidate_result.promotion = promotion
+
+    release_input = MagicMock()
+    release_input.task_type = MagicMock()
+    release_input.model_type = "xgboost"
+    release_input.sources = {
+        "schema": MagicMock(),
+    }
+    release_input.metadata = {}
+    release_input.dataset_version = None
+    release_input.config_hash = None
+    release_input.git_commit = None
+
+    monkeypatch.setattr(
+        lifecycle_adapter,
+        "build_serving_release_input",
+        MagicMock(
+            return_value=release_input
+        ),
+    )
+
+    release_error = RuntimeError(
+        "release publication failed"
+    )
+    monkeypatch.setattr(
+        lifecycle_adapter,
+        "publish_serving_release",
+        MagicMock(
+            side_effect=release_error
+        ),
+    )
+
+    restore_champion = MagicMock()
+    monkeypatch.setattr(
+        lifecycle_adapter,
+        "restore_champion",
+        restore_champion,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="release publication failed",
+    ):
+        lifecycle_adapter._publish_promoted_release(
+            pipeline=pipeline,
+            tracked_result=tracked_result,
+            candidate_result=candidate_result,
+        )
+
+    restore_champion.assert_called_once_with(
+        registration=(
+            candidate_result.registration
+        ),
+        previous_champion_version="6",
+        config=pipeline.config,
+    )
+
+
+def test_failed_initial_release_removes_champion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipeline = MagicMock(
+        spec=TrainingPipeline
+    )
+    pipeline.config = {
+        "paths": {
+            "models": "artifacts/models",
+        },
+    }
+    pipeline.release_input_provider = (
+        MagicMock()
+    )
+
+    tracked_result = MagicMock()
+    candidate_result = MagicMock()
+    candidate_result.registration = (
+        MagicMock()
+    )
+
+    promotion = MagicMock()
+    promotion.decision.promote = True
+    promotion.previous_champion_version = None
+    candidate_result.promotion = promotion
+
+    release_input = MagicMock()
+    release_input.task_type = MagicMock()
+    release_input.model_type = "xgboost"
+    release_input.sources = {
+        "schema": MagicMock(),
+    }
+    release_input.metadata = {}
+    release_input.dataset_version = None
+    release_input.config_hash = None
+    release_input.git_commit = None
+
+    monkeypatch.setattr(
+        lifecycle_adapter,
+        "build_serving_release_input",
+        MagicMock(
+            return_value=release_input
+        ),
+    )
+    monkeypatch.setattr(
+        lifecycle_adapter,
+        "publish_serving_release",
+        MagicMock(
+            side_effect=RuntimeError(
+                "release failed"
+            )
+        ),
+    )
+
+    restore_champion = MagicMock()
+    monkeypatch.setattr(
+        lifecycle_adapter,
+        "restore_champion",
+        restore_champion,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="release failed",
+    ):
+        lifecycle_adapter._publish_promoted_release(
+            pipeline=pipeline,
+            tracked_result=tracked_result,
+            candidate_result=candidate_result,
+        )
+
+    restore_champion.assert_called_once_with(
+        registration=(
+            candidate_result.registration
+        ),
+        previous_champion_version=None,
+        config=pipeline.config,
+    )
+
+
+def test_reports_release_and_restoration_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipeline = MagicMock(
+        spec=TrainingPipeline
+    )
+    pipeline.config = {
+        "paths": {
+            "models": "artifacts/models",
+        },
+    }
+    pipeline.release_input_provider = (
+        MagicMock()
+    )
+
+    tracked_result = MagicMock()
+    candidate_result = MagicMock()
+    candidate_result.registration = (
+        MagicMock()
+    )
+
+    promotion = MagicMock()
+    promotion.decision.promote = True
+    promotion.previous_champion_version = "6"
+    candidate_result.promotion = promotion
+
+    release_input = MagicMock()
+    release_input.task_type = MagicMock()
+    release_input.model_type = "xgboost"
+    release_input.sources = {
+        "schema": MagicMock(),
+    }
+    release_input.metadata = {}
+    release_input.dataset_version = None
+    release_input.config_hash = None
+    release_input.git_commit = None
+
+    release_error = RuntimeError(
+        "release failed"
+    )
+    restoration_error = RuntimeError(
+        "restoration failed"
+    )
+
+    monkeypatch.setattr(
+        lifecycle_adapter,
+        "build_serving_release_input",
+        MagicMock(
+            return_value=release_input
+        ),
+    )
+    monkeypatch.setattr(
+        lifecycle_adapter,
+        "publish_serving_release",
+        MagicMock(
+            side_effect=release_error
+        ),
+    )
+    monkeypatch.setattr(
+        lifecycle_adapter,
+        "restore_champion",
+        MagicMock(
+            side_effect=restoration_error
+        ),
+    )
+
+    with pytest.raises(
+        ExceptionGroup,
+        match="both failed",
+    ) as captured:
+        lifecycle_adapter._publish_promoted_release(
+            pipeline=pipeline,
+            tracked_result=tracked_result,
+            candidate_result=candidate_result,
+        )
+
+    assert (
+        captured.value.exceptions
+        == (
+            release_error,
+            restoration_error,
+        )
+    )

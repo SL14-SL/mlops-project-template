@@ -15,6 +15,7 @@ from ..pipeline.runner import (
     TrackedPipelineResult,
 )
 from ..pipeline.service import TrainingPipeline
+from ..tracking.aliases import restore_champion
 from ..tracking.lifecycle import (
     CandidateLifecycleResult,
     finalize_configured_model_candidate,
@@ -91,39 +92,69 @@ def _publish_promoted_release(
 
     pipeline_result = tracked_result.pipeline
 
-    release_input = build_serving_release_input(
-        provider=(
-            pipeline.release_input_provider
-        ),
-        training_result=(
-            pipeline_result.training
-        ),
-        evaluation_result=(
-            pipeline_result.evaluation
-        ),
-        config=pipeline.config,
-    )
+    try:
+        release_input = (
+            build_serving_release_input(
+                provider=(
+                    pipeline.release_input_provider
+                ),
+                training_result=(
+                    pipeline_result.training
+                ),
+                evaluation_result=(
+                    pipeline_result.evaluation
+                ),
+                config=pipeline.config,
+            )
+        )
 
-    return publish_serving_release(
-        models_path=_models_path(
-            pipeline.config
-        ),
-        registration=(
-            candidate_result.registration
-        ),
-        promotion=promotion,
-        task_type=release_input.task_type,
-        model_type=release_input.model_type,
-        sources=release_input.sources,
-        metadata=release_input.metadata,
-        dataset_version=(
-            release_input.dataset_version
-        ),
-        config_hash=(
-            release_input.config_hash
-        ),
-        git_commit=release_input.git_commit,
-    )
+        return publish_serving_release(
+            models_path=_models_path(
+                pipeline.config
+            ),
+            registration=(
+                candidate_result.registration
+            ),
+            promotion=promotion,
+            task_type=release_input.task_type,
+            model_type=(
+                release_input.model_type
+            ),
+            sources=release_input.sources,
+            metadata=release_input.metadata,
+            dataset_version=(
+                release_input.dataset_version
+            ),
+            config_hash=(
+                release_input.config_hash
+            ),
+            git_commit=(
+                release_input.git_commit
+            ),
+        )
+    except Exception as release_error:
+        try:
+            restore_champion(
+                registration=(
+                    candidate_result.registration
+                ),
+                previous_champion_version=(
+                    promotion
+                    .previous_champion_version
+                ),
+                config=pipeline.config,
+            )
+        except Exception as restoration_error:
+            raise ExceptionGroup(
+                "Serving release publication and "
+                "champion restoration both failed.",
+                [
+                    release_error,
+                    restoration_error,
+                ],
+            ) from None
+
+        raise
 
 
 @flow(
