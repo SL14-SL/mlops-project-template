@@ -44,6 +44,7 @@ The template follows Semantic Versioning.
 - project-specific serving-release input provider contract
 - serving-release input provider dependency for configured training pipelines
 - automatic serving-release publication after successful champion promotion
+- champion-alias restoration after failed serving-release publication
 
 ### Changed
 

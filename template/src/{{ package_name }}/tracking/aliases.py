@@ -138,3 +138,59 @@ def promote_to_champion(
         config=config,
         alias=ModelAlias.CHAMPION,
     )
+
+def restore_champion(
+    *,
+    registration: ModelRegistrationResult,
+    previous_champion_version: str | None,
+    config: Mapping[str, Any],
+) -> AliasAssignment | None:
+    """Restore the champion alias after a failed release."""
+
+    model_name, _ = _require_registered_model(
+        registration
+    )
+
+    if (
+        previous_champion_version is not None
+        and (
+            not isinstance(
+                previous_champion_version,
+                str,
+            )
+            or not previous_champion_version.strip()
+        )
+    ):
+        raise ValueError(
+            "Previous champion version must be "
+            "a non-empty string or None."
+        )
+
+    client = MlflowClient(
+        tracking_uri=(
+            _tracking_uri_from_config(
+                config
+            )
+        )
+    )
+
+    if previous_champion_version is None:
+        client.delete_registered_model_alias(
+            name=model_name,
+            alias=ModelAlias.CHAMPION.value,
+        )
+        return None
+
+    client.set_registered_model_alias(
+        name=model_name,
+        alias=ModelAlias.CHAMPION.value,
+        version=previous_champion_version,
+    )
+
+    return AliasAssignment(
+        model_name=model_name,
+        model_version=(
+            previous_champion_version
+        ),
+        alias=ModelAlias.CHAMPION,
+    )
