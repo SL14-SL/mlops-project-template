@@ -4,9 +4,9 @@ from ..configs.loader import load_config
 from ..pipeline.project_factory import (
     build_project_training_pipeline,
 )
-from ..pipeline.runner import TrackedPipelineResult
-from .prefect_adapter import (
-    run_prefect_training_pipeline,
+from .lifecycle_adapter import (
+    PrefectTrainingLifecycleResult,
+    run_prefect_model_lifecycle,
 )
 
 
@@ -17,16 +17,17 @@ from .prefect_adapter import (
 )
 def training_flow(
     run_id: str | None = None,
-) -> TrackedPipelineResult:
-    """Run the configured {{ task_type }} training pipeline."""
+) -> PrefectTrainingLifecycleResult:
+    """Run the complete {{ task_type }} model lifecycle."""
+
     config = load_config()
     pipeline = build_project_training_pipeline(
         config
     )
 
-    return run_prefect_training_pipeline(
+    return run_prefect_model_lifecycle(
         pipeline=pipeline,
-        run_id=run_id,
+        pipeline_run_id=run_id,
     )
 
 

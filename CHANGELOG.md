@@ -33,6 +33,7 @@ The template follows Semantic Versioning.
 - configuration-driven model lifecycle entrypoint
 - MLflow logging for model evaluation metrics and approval decisions
 - Prefect adapter for the complete MLflow model lifecycle
+- executable Prefect training flow for the complete model lifecycle
 
 ### Changed
 

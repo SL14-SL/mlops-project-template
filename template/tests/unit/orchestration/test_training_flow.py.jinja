@@ -7,7 +7,7 @@ from {{ package_name }}.orchestration import (
 )
 
 
-def test_training_flow_builds_and_executes_pipeline(
+def test_training_flow_builds_and_executes_lifecycle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = {
@@ -24,7 +24,7 @@ def test_training_flow_builds_and_executes_pipeline(
     build_pipeline = MagicMock(
         return_value=pipeline
     )
-    execute_pipeline = MagicMock(
+    execute_lifecycle = MagicMock(
         return_value=expected_result
     )
 
@@ -40,8 +40,8 @@ def test_training_flow_builds_and_executes_pipeline(
     )
     monkeypatch.setattr(
         training_flow_module,
-        "run_prefect_training_pipeline",
-        execute_pipeline,
+        "run_prefect_model_lifecycle",
+        execute_lifecycle,
     )
 
     result = training_flow_module.training_flow.fn(
@@ -53,9 +53,9 @@ def test_training_flow_builds_and_executes_pipeline(
     build_pipeline.assert_called_once_with(
         config
     )
-    execute_pipeline.assert_called_once_with(
+    execute_lifecycle.assert_called_once_with(
         pipeline=pipeline,
-        run_id="pipeline-run-123",
+        pipeline_run_id="pipeline-run-123",
     )
 
 
@@ -75,18 +75,18 @@ def test_training_flow_allows_generated_run_id(
         MagicMock(return_value=pipeline),
     )
 
-    execute_pipeline = MagicMock()
+    execute_lifecycle = MagicMock()
     monkeypatch.setattr(
         training_flow_module,
-        "run_prefect_training_pipeline",
-        execute_pipeline,
+        "run_prefect_model_lifecycle",
+        execute_lifecycle,
     )
 
     training_flow_module.training_flow.fn()
 
-    execute_pipeline.assert_called_once_with(
+    execute_lifecycle.assert_called_once_with(
         pipeline=pipeline,
-        run_id=None,
+        pipeline_run_id=None,
     )
 
 
@@ -116,11 +116,11 @@ def test_training_flow_propagates_extension_error(
         ),
     )
 
-    execute_pipeline = MagicMock()
+    execute_lifecycle = MagicMock()
     monkeypatch.setattr(
         training_flow_module,
-        "run_prefect_training_pipeline",
-        execute_pipeline,
+        "run_prefect_model_lifecycle",
+        execute_lifecycle,
     )
 
     with pytest.raises(
@@ -129,7 +129,7 @@ def test_training_flow_propagates_extension_error(
     ):
         training_flow_module.training_flow.fn()
 
-    execute_pipeline.assert_not_called()
+    execute_lifecycle.assert_not_called()
 
 
 def test_flow_uses_project_specific_name() -> None:
