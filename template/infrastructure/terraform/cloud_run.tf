@@ -33,11 +33,6 @@ resource "google_secret_manager_secret" "api_key" {
   ]
 }
 
-resource "google_secret_manager_secret_version" "api_key" {
-  secret      = google_secret_manager_secret.api_key.id
-  secret_data = var.api_key
-}
-
 resource "google_secret_manager_secret_iam_member" "api_access" {
   project   = var.gcp_project_id
   secret_id = google_secret_manager_secret.api_key.secret_id
@@ -131,7 +126,6 @@ resource "google_cloud_run_v2_service" "api" {
     google_project_service.required[
       "run.googleapis.com"
     ],
-    google_secret_manager_secret_version.api_key,
     google_secret_manager_secret_iam_member.api_access,
     google_storage_bucket_iam_member.api_artifacts,
   ]

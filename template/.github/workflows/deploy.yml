@@ -44,7 +44,7 @@ jobs:
       TF_VAR_allow_unauthenticated: ${{ vars.ALLOW_UNAUTHENTICATED || 'false' }}
       TF_VAR_mlflow_tracking_uri: ${{ vars.MLFLOW_TRACKING_URI || '' }}
       TF_VAR_prefect_api_url: ${{ vars.PREFECT_API_URL || '' }}
-      TF_VAR_api_key: ${{ secrets.API_KEY }}
+      DEPLOYMENT_API_KEY: ${{ secrets.API_KEY }}
 
     steps:
       - name: Check out repository
@@ -71,7 +71,7 @@ jobs:
             fi
           done
 
-          if [ -z "${TF_VAR_api_key:-}" ]; then
+          if [ -z "${DEPLOYMENT_API_KEY:-}" ]; then
             echo "Missing GitHub environment secret: API_KEY"
             exit 1
           fi
@@ -135,6 +135,22 @@ jobs:
           -input=false
           -auto-approve
           foundation.tfplan
+
+      - name: Publish API key to Secret Manager
+        working-directory: infrastructure/terraform
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          secret_name="$(
+            terraform output -raw api_key_secret_name
+          )"
+
+          printf '%s' "${DEPLOYMENT_API_KEY}" \
+            | gcloud secrets versions add \
+                "${secret_name}" \
+                --project "${GCP_PROJECT_ID}" \
+                --data-file=-
 
       - name: Configure Docker authentication
         run: >-

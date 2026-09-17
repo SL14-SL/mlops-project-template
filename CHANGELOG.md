@@ -71,6 +71,7 @@ The template follows Semantic Versioning.
 - two-phase Terraform deployment for bootstrapping Artifact Registry before Cloud Run
 - keyless GitHub Actions authentication through Google Workload Identity Federation
 - manual keyless GitHub Actions deployment to Artifact Registry and Cloud Run
+- publish API keys directly to Secret Manager without storing secret values in Terraform state
 
 ### Changed
 

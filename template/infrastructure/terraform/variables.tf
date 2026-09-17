@@ -61,17 +61,6 @@ variable "container_image" {
   }
 }
 
-variable "api_key" {
-  description = "API key stored in Google Secret Manager."
-  type        = string
-  sensitive   = true
-
-  validation {
-    condition     = length(var.api_key) >= 16
-    error_message = "api_key must contain at least 16 characters."
-  }
-}
-
 variable "allow_unauthenticated" {
   description = "Allow unauthenticated network access to the API."
   type        = bool
