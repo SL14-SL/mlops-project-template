@@ -117,12 +117,16 @@ def test_predict_returns_success(
     monkeypatch,
 ) -> None:
     client, model_manager = build_client()
+    expected_response = successful_response()
     service = MagicMock()
-    service.predict.return_value = successful_response()
+    service.predict.return_value = (
+        expected_response
+    )
     service_constructor = MagicMock(
         return_value=service
     )
     observe = MagicMock()
+    observe_outputs = MagicMock()
 
     monkeypatch.setattr(
         prediction,
@@ -133,6 +137,11 @@ def test_predict_returns_success(
         prediction,
         "observe_prediction",
         observe,
+    )
+    monkeypatch.setattr(
+        prediction,
+        "observe_model_outputs",
+        observe_outputs,
     )
 
     with client:
@@ -149,6 +158,9 @@ def test_predict_returns_success(
     assert response.json()["release_id"] == "release-1"
     service_constructor.assert_called_once_with(
         model_manager
+    )
+    observe_outputs.assert_called_once_with(
+        expected_response
     )
 
     observe.assert_called_once()
@@ -234,6 +246,7 @@ def test_predict_maps_domain_validation_error(
         "Prediction input is missing required columns."
     )
     observe = MagicMock()
+    observe_outputs = MagicMock()
 
     monkeypatch.setattr(
         prediction,
@@ -244,6 +257,11 @@ def test_predict_maps_domain_validation_error(
         prediction,
         "observe_prediction",
         observe,
+    )
+    monkeypatch.setattr(
+        prediction,
+        "observe_model_outputs",
+        observe_outputs,
     )
 
     with client:
@@ -260,6 +278,7 @@ def test_predict_maps_domain_validation_error(
         "Prediction input is missing required columns."
     )
 
+    observe_outputs.assert_not_called()
     observe.assert_called_once()
 
     metric_call = observe.call_args.kwargs
