@@ -49,3 +49,16 @@ Thumbs.db
 # Temporary files
 *.log
 *.tmp
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+terraform.tfvars
+.terraform.lock.hcl
