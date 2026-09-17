@@ -51,6 +51,7 @@ The template follows Semantic Versioning.
 - direct MLflow 3 logged-model registration without run-artifact fallback
 - optional local Prometheus and Grafana monitoring stack
 - provisioned Prometheus datasource and API overview dashboard
+- Prometheus alerts for API availability, server errors and p95 latency
 
 ### Changed
 

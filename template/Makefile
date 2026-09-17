@@ -146,3 +146,7 @@ monitoring-logs: ## Follow Prometheus and Grafana logs
 .PHONY: monitoring-down
 monitoring-down: ## Stop and remove Prometheus and Grafana
 	$(COMPOSE) --profile monitoring rm --force --stop prometheus grafana
+
+.PHONY: monitoring-validate
+monitoring-validate: ## Validate Prometheus configuration and alert rules
+	$(COMPOSE) --profile monitoring run --rm --no-deps --entrypoint /bin/promtool prometheus check config /etc/prometheus/prometheus.yml
