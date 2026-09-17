@@ -13,3 +13,21 @@ variable "storage_location" {
   type        = string
   default     = "EU"
 }
+
+variable "enable_github_actions" {
+  description = "Create GitHub Actions Workload Identity resources."
+  type        = bool
+  default     = false
+}
+
+variable "github_repository_owner" {
+  description = "Owner of the GitHub repository."
+  type        = string
+  default     = "replace-me"
+}
+
+variable "github_repository_name" {
+  description = "Name of the GitHub repository."
+  type        = string
+  default     = "replace-me"
+}

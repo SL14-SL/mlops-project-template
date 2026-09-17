@@ -69,6 +69,7 @@ The template follows Semantic Versioning.
 - reproducible Terraform provider lock files
 - local Make targets and GitHub Actions validation for Terraform modules
 - two-phase Terraform deployment for bootstrapping Artifact Registry before Cloud Run
+- keyless GitHub Actions authentication through Google Workload Identity Federation
 
 ### Changed
 
