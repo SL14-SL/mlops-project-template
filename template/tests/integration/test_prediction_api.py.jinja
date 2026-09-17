@@ -37,6 +37,15 @@ def build_client(
     model_manager = MagicMock()
     model_manager.ready = ready
 
+    bundle = MagicMock()
+    bundle.release_id = "release-1"
+    bundle.model_name = "prediction-test-model"
+    bundle.model_version = "1"
+    bundle.manifest.task_type.value = (
+        "{{ task_type }}"
+    )
+    model_manager.get_bundle.return_value = bundle
+
     app = create_app(
         model_manager=model_manager,
         load_model_on_startup=False,
@@ -113,10 +122,17 @@ def test_predict_returns_success(
     service_constructor = MagicMock(
         return_value=service
     )
+    observe = MagicMock()
+
     monkeypatch.setattr(
         prediction,
         "PredictionService",
         service_constructor,
+    )
+    monkeypatch.setattr(
+        prediction,
+        "observe_prediction",
+        observe,
     )
 
     with client:
@@ -134,6 +150,17 @@ def test_predict_returns_success(
     service_constructor.assert_called_once_with(
         model_manager
     )
+
+    observe.assert_called_once()
+
+    metric_call = observe.call_args.kwargs
+
+    assert metric_call["task_type"] == (
+        "{{ task_type }}"
+    )
+    assert metric_call["status"] == "success"
+    assert metric_call["observation_count"] == 1
+    assert metric_call["latency_seconds"] >= 0
 
 
 def test_predict_requires_api_key() -> None:
@@ -206,10 +233,17 @@ def test_predict_maps_domain_validation_error(
     service.predict.side_effect = ValueError(
         "Prediction input is missing required columns."
     )
+    observe = MagicMock()
+
     monkeypatch.setattr(
         prediction,
         "PredictionService",
         MagicMock(return_value=service),
+    )
+    monkeypatch.setattr(
+        prediction,
+        "observe_prediction",
+        observe,
     )
 
     with client:
@@ -225,6 +259,17 @@ def test_predict_maps_domain_validation_error(
     assert response.json()["detail"] == (
         "Prediction input is missing required columns."
     )
+
+    observe.assert_called_once()
+
+    metric_call = observe.call_args.kwargs
+
+    assert metric_call["task_type"] == (
+        "{{ task_type }}"
+    )
+    assert metric_call["status"] == "error"
+    assert metric_call["observation_count"] == 1
+    assert metric_call["latency_seconds"] >= 0
 
 
 def test_predict_maps_model_not_ready_error(

@@ -15,6 +15,7 @@ from ...inference.model_manager import (
 )
 from ...inference.prediction_service import PredictionService
 from ...inference.serving_bundle import ServingBundle
+from ...monitoring.prediction import observe_prediction
 from ...monitoring.prediction_event_logger import (
     PredictionEvent,
     log_prediction_event,
@@ -52,24 +53,32 @@ def _record_prediction_event(
     started_at: float,
     error: Exception | None = None,
 ) -> None:
-    """Record privacy-safe metadata for one model invocation."""
+    """Record privacy-safe logs and operational metrics."""
+    duration_seconds = (
+        time.perf_counter() - started_at
+    )
+    prediction_status = (
+        "error"
+        if error is not None
+        else "success"
+    )
+    task_type = bundle.manifest.task_type.value
+    observation_count = len(
+        prediction_request.inputs
+    )
+
     try:
         event = PredictionEvent(
             request_id=_request_id(request),
             release_id=bundle.release_id,
-            task_type=bundle.manifest.task_type.value,
+            task_type=task_type,
             model_name=bundle.model_name,
             model_version=bundle.model_version,
-            batch_size=len(prediction_request.inputs),
+            batch_size=observation_count,
             duration_ms=(
-                time.perf_counter() - started_at
-            )
-            * 1000,
-            status=(
-                "error"
-                if error is not None
-                else "success"
+                duration_seconds * 1000
             ),
+            status=prediction_status,
             error_type=(
                 type(error).__name__
                 if error is not None
@@ -80,6 +89,19 @@ def _record_prediction_event(
     except Exception:
         logger.exception(
             "Could not record prediction event | request_id=%s",
+            _request_id(request),
+        )
+
+    try:
+        observe_prediction(
+            task_type=task_type,
+            status=prediction_status,
+            observation_count=observation_count,
+            latency_seconds=duration_seconds,
+        )
+    except Exception:
+        logger.exception(
+            "Could not record prediction metrics | request_id=%s",
             _request_id(request),
         )
 
