@@ -151,3 +151,20 @@ monitoring-down: ## Stop and remove monitoring services
 monitoring-validate: ## Validate Prometheus and Alertmanager configuration
 	$(COMPOSE) --profile monitoring run --rm --no-deps --entrypoint /bin/promtool prometheus check config /etc/prometheus/prometheus.yml
 	$(COMPOSE) --profile monitoring run --rm --no-deps --entrypoint /bin/amtool alertmanager check-config /etc/alertmanager/alertmanager.yml
+
+.PHONY: terraform-fmt
+terraform-fmt: ## Check Terraform formatting
+	terraform -chdir=infrastructure/terraform-bootstrap fmt -check -recursive
+	terraform -chdir=infrastructure/terraform fmt -check -recursive
+
+
+.PHONY: terraform-init
+terraform-init: ## Initialize Terraform without a remote backend
+	terraform -chdir=infrastructure/terraform-bootstrap init -backend=false
+	terraform -chdir=infrastructure/terraform init -backend=false
+
+
+.PHONY: terraform-validate
+terraform-validate: terraform-init terraform-fmt ## Validate Terraform modules
+	terraform -chdir=infrastructure/terraform-bootstrap validate
+	terraform -chdir=infrastructure/terraform validate

@@ -59,6 +59,15 @@ The template follows Semantic Versioning.
 - operational Prometheus metrics for prediction requests, observations and latency
 - Grafana dashboard for prediction throughput, errors and latency
 - Prometheus alerts for sustained prediction errors and latency
+- task-specific output-distribution metrics for classification and forecasting
+- delayed ground-truth feedback contracts and model-performance metrics
+- feature-level drift metrics with project-specific drift extension points
+- task-specific Grafana dashboards for model quality and drift
+- Google Cloud Terraform foundation for required APIs, Artifact Registry and GCS
+- Cloud Run infrastructure with Secret Manager integration and health probes
+- protected GCS remote-state bootstrap for Terraform
+- reproducible Terraform provider lock files
+- local Make targets and GitHub Actions validation for Terraform modules
 
 ### Changed
 
