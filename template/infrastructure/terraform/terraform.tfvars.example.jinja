@@ -8,6 +8,9 @@ storage_location             = "EU"
 
 force_destroy_artifact_bucket = false
 
+# Keep false for the first apply. Enable after pushing the image.
+deploy_cloud_run = false
+
 container_image = "europe-west1-docker.pkg.dev/replace-with-your-gcp-project-id/{{ project_slug }}-images/api:latest"
 
 api_key = "replace-with-a-secure-api-key"

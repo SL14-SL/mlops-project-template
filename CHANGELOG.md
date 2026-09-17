@@ -68,6 +68,7 @@ The template follows Semantic Versioning.
 - protected GCS remote-state bootstrap for Terraform
 - reproducible Terraform provider lock files
 - local Make targets and GitHub Actions validation for Terraform modules
+- two-phase Terraform deployment for bootstrapping Artifact Registry before Cloud Run
 
 ### Changed
 

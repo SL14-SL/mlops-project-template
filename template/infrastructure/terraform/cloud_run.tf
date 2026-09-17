@@ -46,6 +46,8 @@ resource "google_secret_manager_secret_iam_member" "api_access" {
 }
 
 resource "google_cloud_run_v2_service" "api" {
+  count = var.deploy_cloud_run ? 1 : 0
+
   project  = var.gcp_project_id
   name     = "${local.name_prefix}-api"
   location = var.region
@@ -136,11 +138,18 @@ resource "google_cloud_run_v2_service" "api" {
 }
 
 resource "google_cloud_run_v2_service_iam_member" "public_access" {
-  count = var.allow_unauthenticated ? 1 : 0
+  count = (
+    var.deploy_cloud_run
+    && var.allow_unauthenticated
+  ) ? 1 : 0
 
-  project  = var.gcp_project_id
-  location = google_cloud_run_v2_service.api.location
-  name     = google_cloud_run_v2_service.api.name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
+  project = var.gcp_project_id
+  location = (
+    google_cloud_run_v2_service.api[0].location
+  )
+  name = (
+    google_cloud_run_v2_service.api[0].name
+  )
+  role   = "roles/run.invoker"
+  member = "allUsers"
 }

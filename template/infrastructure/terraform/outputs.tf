@@ -25,17 +25,23 @@ output "api_service_account_email" {
   value       = google_service_account.api.email
 }
 
+output "api_key_secret_name" {
+  description = "Secret Manager secret containing the API key."
+  value       = google_secret_manager_secret.api_key.secret_id
+}
+
 output "cloud_run_service_name" {
   description = "Name of the deployed Cloud Run service."
-  value       = google_cloud_run_v2_service.api.name
+  value = try(
+    google_cloud_run_v2_service.api[0].name,
+    null,
+  )
 }
 
 output "cloud_run_service_uri" {
   description = "URI assigned to the Cloud Run service."
-  value       = google_cloud_run_v2_service.api.uri
-}
-
-output "api_key_secret_name" {
-  description = "Secret Manager secret containing the API key."
-  value       = google_secret_manager_secret.api_key.secret_id
+  value = try(
+    google_cloud_run_v2_service.api[0].uri,
+    null,
+  )
 }

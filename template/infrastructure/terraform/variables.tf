@@ -123,3 +123,9 @@ variable "prefect_api_url" {
   type        = string
   default     = ""
 }
+
+variable "deploy_cloud_run" {
+  description = "Deploy the Cloud Run API after its image is available."
+  type        = bool
+  default     = false
+}
