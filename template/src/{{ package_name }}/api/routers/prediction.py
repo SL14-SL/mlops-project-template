@@ -15,6 +15,7 @@ from ...inference.model_manager import (
 )
 from ...inference.prediction_service import PredictionService
 from ...inference.serving_bundle import ServingBundle
+from ...monitoring.model_observability import observe_model_outputs
 from ...monitoring.prediction import observe_prediction
 from ...monitoring.prediction_event_logger import (
     PredictionEvent,
@@ -105,6 +106,19 @@ def _record_prediction_event(
             _request_id(request),
         )
 
+def _record_model_outputs(
+    *,
+    response: PredictionResponse,
+    request: Request,
+) -> None:
+    """Record model outputs without affecting the response."""
+    try:
+        observe_model_outputs(response)
+    except Exception:
+        logger.exception(
+            "Could not record model output metrics | request_id=%s",
+            _request_id(request),
+        )
 
 @router.post(
     "/predict",
@@ -175,6 +189,11 @@ def predict(
             error=exc,
         )
         raise
+
+    _record_model_outputs(
+        response=response,
+        request=http_request,
+    )
 
     _record_prediction_event(
         request=http_request,

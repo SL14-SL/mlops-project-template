@@ -138,3 +138,129 @@ groups:
               )
             )
           )
+
+      - record: mlops_classification:positive_ratio5m
+        expr: >-
+          sum(
+            rate(
+              mlops_classification_predictions_total{
+                predicted_class="1"
+              }[5m]
+            )
+          )
+          /
+          clamp_min(
+            sum(
+              rate(
+                mlops_classification_predictions_total[5m]
+              )
+            ),
+            0.000001
+          )
+
+      - record: mlops_classification:accuracy5m
+        expr: >-
+          sum(
+            rate(
+              mlops_classification_correct_total[5m]
+            )
+          )
+          /
+          clamp_min(
+            sum(
+              rate(
+                mlops_classification_feedback_total[5m]
+              )
+            ),
+            0.000001
+          )
+
+      - record: mlops_classification:brier_score5m
+        expr: >-
+          sum(
+            rate(
+              mlops_classification_brier_error_total[5m]
+            )
+          )
+          /
+          clamp_min(
+            sum(
+              rate(
+                mlops_classification_feedback_total[5m]
+              )
+            ),
+            0.000001
+          )
+
+      - record: mlops_forecast:mae5m
+        expr: >-
+          sum(
+            rate(
+              mlops_forecast_absolute_error_total[5m]
+            )
+          )
+          /
+          clamp_min(
+            sum(
+              rate(
+                mlops_forecast_feedback_total[5m]
+              )
+            ),
+            0.000001
+          )
+
+      - record: mlops_forecast:rmse5m
+        expr: >-
+          sqrt(
+            sum(
+              rate(
+                mlops_forecast_squared_error_total[5m]
+              )
+            )
+            /
+            clamp_min(
+              sum(
+                rate(
+                  mlops_forecast_feedback_total[5m]
+                )
+              ),
+              0.000001
+            )
+          )
+
+      - record: mlops_forecast:bias5m
+        expr: >-
+          (
+            sum(
+              rate(
+                mlops_forecast_over_error_total[5m]
+              )
+            )
+            -
+            sum(
+              rate(
+                mlops_forecast_under_error_total[5m]
+              )
+            )
+          )
+          /
+          clamp_min(
+            sum(
+              rate(
+                mlops_forecast_feedback_total[5m]
+              )
+            ),
+            0.000001
+          )
+
+      - record: mlops_drift:detected_features
+        expr: >-
+          sum(
+            mlops_feature_drift_detected
+          )
+
+      - record: mlops_drift:max_score
+        expr: >-
+          max(
+            mlops_feature_drift_score
+          )
