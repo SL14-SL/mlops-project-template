@@ -84,3 +84,57 @@ groups:
             ),
             1
           )
+
+
+  - name: mlops-prediction
+    interval: 15s
+    rules:
+      - record: mlops_prediction:request_rate5m
+        expr: >-
+          sum(
+            rate(
+              mlops_prediction_requests_total[5m]
+            )
+          )
+
+      - record: mlops_prediction:observation_rate5m
+        expr: >-
+          sum(
+            rate(
+              mlops_prediction_observations_total[5m]
+            )
+          )
+
+      - record: mlops_prediction:error_ratio5m
+        expr: >-
+          (
+            sum(
+              rate(
+                mlops_prediction_requests_total{
+                  status="error"
+                }[5m]
+              )
+            )
+            or
+            vector(0)
+          )
+          /
+          clamp_min(
+            sum(
+              rate(
+                mlops_prediction_requests_total[5m]
+              )
+            ),
+            0.000001
+          )
+
+      - record: mlops_prediction:p95_latency_seconds5m
+        expr: >-
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(
+                mlops_prediction_latency_seconds_bucket[5m]
+              )
+            )
+          )
