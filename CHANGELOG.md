@@ -72,6 +72,7 @@ The template follows Semantic Versioning.
 - keyless GitHub Actions authentication through Google Workload Identity Federation
 - manual keyless GitHub Actions deployment to Artifact Registry and Cloud Run
 - publish API keys directly to Secret Manager without storing secret values in Terraform state
+- end-to-end Google Cloud bootstrap and deployment guide
 
 ### Changed
 
