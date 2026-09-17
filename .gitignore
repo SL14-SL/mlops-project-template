@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *.pyo
+*.egg-info/
 
 # Virtual environments
 .venv/
@@ -10,7 +11,10 @@ venv/
 # Testing and quality tools
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
+.hypothesis/
 .coverage
+.coverage.*
 htmlcov/
 
 # IDEs
@@ -24,13 +28,33 @@ Thumbs.db
 # Build artifacts
 build/
 dist/
-*.egg-info/
+site/
 
 # Local environment
 .env
 .env.*
 !.env.example
 !template/.env.example.jinja
+
+# Local Python selection
+.python-version
+
+# Terraform working data
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform.tfstate.lock.info
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+terraform.tfvars
+*.auto.tfvars
+.terraformrc
+terraform.rc
 
 # Generated projects
 generated/

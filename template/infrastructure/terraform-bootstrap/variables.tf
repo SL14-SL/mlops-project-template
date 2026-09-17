@@ -1,0 +1,15 @@
+variable "gcp_project_id" {
+  description = "Google Cloud project containing the state bucket."
+  type        = string
+
+  validation {
+    condition     = length(trimspace(var.gcp_project_id)) > 0
+    error_message = "gcp_project_id must not be empty."
+  }
+}
+
+variable "storage_location" {
+  description = "Location used for the Terraform state bucket."
+  type        = string
+  default     = "EU"
+}
