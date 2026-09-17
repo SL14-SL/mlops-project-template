@@ -49,6 +49,8 @@ The template follows Semantic Versioning.
 - end-to-end integration test from real MLflow run to active serving release
 - MLflow 3 logged-model URI support for model artifact adapters
 - direct MLflow 3 logged-model registration without run-artifact fallback
+- optional local Prometheus and Grafana monitoring stack
+- provisioned Prometheus datasource and API overview dashboard
 
 ### Changed
 

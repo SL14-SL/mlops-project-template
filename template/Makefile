@@ -117,3 +117,32 @@ mlflow-logs: ## Follow MLflow server logs
 .PHONY: mlflow-down
 mlflow-down: ## Stop and remove the MLflow stack
 	$(COMPOSE) --profile tracking down
+
+.PHONY: monitoring-config
+monitoring-config: ## Validate the monitoring Compose configuration
+	$(COMPOSE) --profile monitoring config
+
+
+.PHONY: monitoring-up
+monitoring-up: ## Start API, Prometheus and Grafana
+	$(COMPOSE) --profile monitoring up --detach api prometheus grafana
+
+
+.PHONY: monitoring-rebuild
+monitoring-rebuild: ## Rebuild API and recreate the monitoring stack
+	$(COMPOSE) --profile monitoring up --detach --build --force-recreate api prometheus grafana
+
+
+.PHONY: monitoring-ps
+monitoring-ps: ## Show monitoring service status
+	$(COMPOSE) --profile monitoring ps api prometheus grafana
+
+
+.PHONY: monitoring-logs
+monitoring-logs: ## Follow Prometheus and Grafana logs
+	$(COMPOSE) --profile monitoring logs --follow prometheus grafana
+
+
+.PHONY: monitoring-down
+monitoring-down: ## Stop and remove Prometheus and Grafana
+	$(COMPOSE) --profile monitoring rm --force --stop prometheus grafana
