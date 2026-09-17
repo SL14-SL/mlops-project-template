@@ -56,6 +56,9 @@ The template follows Semantic Versioning.
 - Prometheus routing for availability, error-rate and latency alerts
 - Prometheus recording rules for API service-level indicators
 - provisioned Grafana SLO dashboard with availability, latency and error budget
+- operational Prometheus metrics for prediction requests, observations and latency
+- Grafana dashboard for prediction throughput, errors and latency
+- Prometheus alerts for sustained prediction errors and latency
 
 ### Changed
 

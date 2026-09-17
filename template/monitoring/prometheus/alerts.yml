@@ -66,3 +66,36 @@ groups:
           description: >-
             The API p95 request latency has exceeded one second
             for at least five minutes.
+
+
+  - name: mlops-prediction-alerts
+    rules:
+      - alert: PredictionErrorRateHigh
+        expr: >-
+          mlops_prediction:error_ratio5m
+          >
+          0.05
+        for: 10m
+        labels:
+          severity: warning
+          component: prediction
+        annotations:
+          summary: Prediction error rate is elevated
+          description: >-
+            More than 5 percent of prediction requests
+            have failed for at least 10 minutes.
+
+      - alert: PredictionLatencyHigh
+        expr: >-
+          mlops_prediction:p95_latency_seconds5m
+          >
+          1
+        for: 10m
+        labels:
+          severity: warning
+          component: prediction
+        annotations:
+          summary: Prediction latency is elevated
+          description: >-
+            The p95 model prediction latency has exceeded
+            one second for at least 10 minutes.
