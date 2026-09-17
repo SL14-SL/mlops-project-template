@@ -1,0 +1,86 @@
+groups:
+  - name: mlops-api-sli
+    interval: 15s
+    rules:
+      - record: mlops_api:request_rate5m
+        expr: >-
+          sum(
+            rate(
+              mlops_api_requests_total[5m]
+            )
+          )
+
+      - record: mlops_api:server_error_ratio5m
+        expr: >-
+          (
+            sum(
+              rate(
+                mlops_api_requests_total{
+                  status_code=~"5.."
+                }[5m]
+              )
+            )
+            or
+            vector(0)
+          )
+          /
+          clamp_min(
+            sum(
+              rate(
+                mlops_api_requests_total[5m]
+              )
+            ),
+            0.000001
+          )
+
+      - record: mlops_api:availability_ratio5m
+        expr: >-
+          1
+          -
+          mlops_api:server_error_ratio5m
+
+      - record: mlops_api:p95_latency_seconds5m
+        expr: >-
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(
+                mlops_api_request_latency_seconds_bucket[5m]
+              )
+            )
+          )
+
+      - record: mlops_api:latency_sli_ratio5m
+        expr: >-
+          sum(
+            rate(
+              mlops_api_request_latency_seconds_bucket{
+                le="1.0"
+              }[5m]
+            )
+          )
+          /
+          clamp_min(
+            sum(
+              rate(
+                mlops_api_request_latency_seconds_count[5m]
+              )
+            ),
+            0.000001
+          )
+
+      - record: mlops_api:error_budget_remaining_ratio5m
+        expr: >-
+          clamp_max(
+            clamp_min(
+              1
+              -
+              (
+                mlops_api:server_error_ratio5m
+                /
+                0.005
+              ),
+              0
+            ),
+            1
+          )

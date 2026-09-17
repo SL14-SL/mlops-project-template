@@ -54,6 +54,8 @@ The template follows Semantic Versioning.
 - Prometheus alerts for API availability, server errors and p95 latency
 - optional local Alertmanager with persistent alert state
 - Prometheus routing for availability, error-rate and latency alerts
+- Prometheus recording rules for API service-level indicators
+- provisioned Grafana SLO dashboard with availability, latency and error budget
 
 ### Changed
 
