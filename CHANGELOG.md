@@ -70,6 +70,7 @@ The template follows Semantic Versioning.
 - local Make targets and GitHub Actions validation for Terraform modules
 - two-phase Terraform deployment for bootstrapping Artifact Registry before Cloud Run
 - keyless GitHub Actions authentication through Google Workload Identity Federation
+- manual keyless GitHub Actions deployment to Artifact Registry and Cloud Run
 
 ### Changed
 
