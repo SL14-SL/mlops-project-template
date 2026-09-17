@@ -7,3 +7,18 @@ artifact_registry_repository = "{{ project_slug }}-images"
 storage_location             = "EU"
 
 force_destroy_artifact_bucket = false
+
+container_image = "europe-west1-docker.pkg.dev/replace-with-your-gcp-project-id/{{ project_slug }}-images/api:latest"
+
+api_key = "replace-with-a-secure-api-key"
+
+allow_unauthenticated = false
+
+minimum_instances = 0
+maximum_instances = 3
+
+container_cpu    = "1"
+container_memory = "512Mi"
+
+mlflow_tracking_uri = ""
+prefect_api_url      = ""
