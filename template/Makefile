@@ -124,29 +124,30 @@ monitoring-config: ## Validate the monitoring Compose configuration
 
 
 .PHONY: monitoring-up
-monitoring-up: ## Start API, Prometheus and Grafana
-	$(COMPOSE) --profile monitoring up --detach api prometheus grafana
+monitoring-up: ## Start API, Prometheus, Alertmanager and Grafana
+	$(COMPOSE) --profile monitoring up --detach api prometheus alertmanager grafana
 
 
 .PHONY: monitoring-rebuild
 monitoring-rebuild: ## Rebuild API and recreate the monitoring stack
-	$(COMPOSE) --profile monitoring up --detach --build --force-recreate api prometheus grafana
+	$(COMPOSE) --profile monitoring up --detach --build --force-recreate api prometheus alertmanager grafana
 
 
 .PHONY: monitoring-ps
 monitoring-ps: ## Show monitoring service status
-	$(COMPOSE) --profile monitoring ps api prometheus grafana
+	$(COMPOSE) --profile monitoring ps api prometheus alertmanager grafana
 
 
 .PHONY: monitoring-logs
-monitoring-logs: ## Follow Prometheus and Grafana logs
-	$(COMPOSE) --profile monitoring logs --follow prometheus grafana
+monitoring-logs: ## Follow monitoring service logs
+	$(COMPOSE) --profile monitoring logs --follow prometheus alertmanager grafana
 
 
 .PHONY: monitoring-down
-monitoring-down: ## Stop and remove Prometheus and Grafana
-	$(COMPOSE) --profile monitoring rm --force --stop prometheus grafana
+monitoring-down: ## Stop and remove monitoring services
+	$(COMPOSE) --profile monitoring rm --force --stop prometheus alertmanager grafana
 
 .PHONY: monitoring-validate
-monitoring-validate: ## Validate Prometheus configuration and alert rules
+monitoring-validate: ## Validate Prometheus and Alertmanager configuration
 	$(COMPOSE) --profile monitoring run --rm --no-deps --entrypoint /bin/promtool prometheus check config /etc/prometheus/prometheus.yml
+	$(COMPOSE) --profile monitoring run --rm --no-deps --entrypoint /bin/amtool alertmanager check-config /etc/alertmanager/alertmanager.yml

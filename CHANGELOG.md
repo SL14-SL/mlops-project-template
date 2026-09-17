@@ -52,6 +52,8 @@ The template follows Semantic Versioning.
 - optional local Prometheus and Grafana monitoring stack
 - provisioned Prometheus datasource and API overview dashboard
 - Prometheus alerts for API availability, server errors and p95 latency
+- optional local Alertmanager with persistent alert state
+- Prometheus routing for availability, error-rate and latency alerts
 
 ### Changed
 

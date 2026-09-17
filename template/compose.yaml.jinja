@@ -122,6 +122,23 @@ services:
     depends_on:
       api:
         condition: service_healthy
+      alertmanager:
+        condition: service_started
+
+  alertmanager:
+    image: prom/alertmanager:${ALERTMANAGER_VERSION:-v0.28.1}
+    profiles:
+      - monitoring
+    init: true
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
 
   grafana:
     image: grafana/grafana:${GRAFANA_VERSION:-12.1.0}
@@ -147,3 +164,4 @@ volumes:
   mlflow-data:
   prometheus-data:
   grafana-data:
+  alertmanager-data:
