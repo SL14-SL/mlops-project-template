@@ -73,6 +73,7 @@ The template follows Semantic Versioning.
 - manual keyless GitHub Actions deployment to Artifact Registry and Cloud Run
 - publish API keys directly to Secret Manager without storing secret values in Terraform state
 - end-to-end Google Cloud bootstrap and deployment guide
+- approval-aware Cloud Run revision rollback workflow
 
 ### Changed
 

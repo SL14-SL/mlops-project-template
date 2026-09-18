@@ -202,6 +202,18 @@ gh variable set \
 
 Leave them unset while these external services are not available.
 
+An optional explicit Cloud Run service name can be configured:
+
+```bash
+gh variable set \
+  CLOUD_RUN_SERVICE_NAME \
+  --body "{{ project_slug }}-dev-api" \
+  --env dev
+```
+
+If it is omitted, the rollback workflow derives the service name from
+the GitHub repository name and deployment environment.
+
 ## Configure GitHub Environments
 
 Create the deployment environments:
@@ -361,6 +373,50 @@ gh workflow run \
 
 Terraform updates Cloud Run to the new image while preserving the
 existing infrastructure.
+
+
+## Rolling back Cloud Run
+
+The Cloud Run rollback changes application traffic without modifying
+the active model serving release.
+
+Roll back automatically to the second-newest revision:
+
+```bash
+gh workflow run \
+  rollback.yml \
+  --field environment=dev
+```
+
+Select a specific revision:
+
+```bash
+gcloud run revisions list \
+  --service "{{ project_slug }}-dev-api" \
+  --region "europe-west1"
+```
+
+```bash
+gh workflow run \
+  rollback.yml \
+  --field environment=dev \
+  --field revision=REVISION_NAME
+```
+
+Watch the workflow:
+
+```bash
+gh run watch
+```
+
+For production, GitHub Environment reviewers should approve the
+rollback before the job starts.
+
+A Cloud Run rollback and a model rollback are separate operations:
+
+- use this workflow for broken application or container revisions;
+- use the serving-release rollback for a faulty model release.
+
 
 ## Destroying an environment
 
