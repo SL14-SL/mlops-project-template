@@ -7,6 +7,7 @@ The template follows Semantic Versioning.
 ## [Unreleased]
 
 ### Added
+- automated Copier upgrade compatibility tests from v0.2.0 to the current template
 
 ### Changed
 

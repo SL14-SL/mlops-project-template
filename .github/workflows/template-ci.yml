@@ -29,6 +29,8 @@ jobs:
     steps:
       - name: Check out template repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -112,3 +114,100 @@ jobs:
         if: always()
         working-directory: generated/${{ matrix.project_slug }}
         run: docker compose down --volumes
+
+  template-update:
+    name: Update ${{ matrix.task_type }} project
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - task_type: classification
+            project_name: Classification Update CI
+            project_slug: classification-update-ci
+
+          - task_type: forecasting
+            project_name: Forecasting Update CI
+            project_slug: forecasting-update-ci
+
+    steps:
+      - name: Check out template repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.12.13"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Synchronize template dependencies
+        run: uv sync --locked
+
+      - name: Generate project from v0.2.0
+        run: |
+          uv run copier copy --defaults \
+            --vcs-ref v0.2.0 \
+            --data project_name="${{ matrix.project_name }}" \
+            --data project_slug="${{ matrix.project_slug }}" \
+            --data task_type="${{ matrix.task_type }}" \
+            . \
+            "generated/${{ matrix.project_slug }}"
+
+      - name: Initialize generated Git repository
+        working-directory: generated/${{ matrix.project_slug }}
+        run: |
+          git init
+          git config user.name "Template CI"
+          git config user.email "template-ci@example.invalid"
+          git add .
+          git commit \
+            -m "chore: generate project from template v0.2.0"
+
+      - name: Update project to current template
+        run: >-
+          uv run copier update
+          --defaults
+          --vcs-ref HEAD
+          "generated/${{ matrix.project_slug }}"
+
+      - name: Verify updated template files
+        working-directory: generated/${{ matrix.project_slug }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f .github/dependabot.yml
+          test -f .github/workflows/security.yml
+          test -f .trivyignore
+
+          grep \
+            --quiet \
+            'pip-audit==2.10.1' \
+            pyproject.toml
+
+      - name: Create local environment file
+        working-directory: generated/${{ matrix.project_slug }}
+        run: cp .env.example .env
+
+      - name: Synchronize updated project
+        working-directory: generated/${{ matrix.project_slug }}
+        run: uv sync
+
+      - name: Run updated project checks
+        working-directory: generated/${{ matrix.project_slug }}
+        run: make check
+
+      - name: Validate updated Compose configuration
+        working-directory: generated/${{ matrix.project_slug }}
+        run: >-
+          docker compose
+          --profile orchestration
+          --profile tracking
+          --profile monitoring
+          config
+          --quiet
