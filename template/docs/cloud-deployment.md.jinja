@@ -247,15 +247,68 @@ GitHub repository
 → Required reviewers
 ```
 
-## Run the deployment
+## Plan the deployment
 
-Start a development deployment:
+The first workflow run prepares the foundational infrastructure,
+publishes an immutable container image and creates a Cloud Run
+deployment plan. It does not update the live Cloud Run service.
+
+Start a development plan:
 
 ```bash
 gh workflow run \
   deploy.yml \
-  --field environment=dev
+  --field environment=dev \
+  --field apply_changes=false
 ```
+
+Watch the workflow:
+
+```bash
+gh run watch
+```
+
+The workflow uploads the human-readable Terraform plan as a workflow
+artifact. Find the completed run:
+
+```bash
+gh run list \
+  --workflow deploy.yml \
+  --limit 5
+```
+
+Download the plan using its run ID:
+
+```bash
+gh run download \
+  RUN_ID \
+  --pattern "terraform-plan-dev-*"
+```
+
+Review `deployment-plan.txt` before requesting the apply.
+
+The planning run may create or update foundational resources such as
+Artifact Registry, the artifact bucket, service accounts and Secret
+Manager. It does not change the live Cloud Run revision.
+
+## Apply the deployment
+
+After reviewing the plan, start a second workflow run:
+
+```bash
+gh workflow run \
+  deploy.yml \
+  --field environment=dev \
+  --field apply_changes=true
+```
+
+The apply run:
+
+1. refreshes the foundational infrastructure;
+2. builds and publishes an immutable container image;
+3. creates a fresh Terraform deployment plan;
+4. applies that exact plan;
+5. verifies that Cloud Run reports a ready service.
 
 Watch its progress:
 
@@ -263,14 +316,12 @@ Watch its progress:
 gh run watch
 ```
 
-The workflow performs two Terraform phases:
-
-1. create foundational infrastructure without Cloud Run;
-2. build and push the container image;
-3. deploy Cloud Run using the published image.
+For `prod`, configure required reviewers in the GitHub `prod`
+environment. The apply workflow cannot begin before approval.
 
 The deployment summary contains the image URI, service name and
 Cloud Run URI.
+
 
 ## Verify the deployment
 
@@ -363,16 +414,26 @@ security review.
 Every manually started deployment builds an immutable image tagged with
 the Git commit SHA.
 
-Run another deployment after merging changes:
+After merging changes, first create and review a new deployment plan:
 
 ```bash
 gh workflow run \
   deploy.yml \
-  --field environment=dev
+  --field environment=dev \
+  --field apply_changes=false
 ```
 
-Terraform updates Cloud Run to the new image while preserving the
-existing infrastructure.
+After reviewing the plan, apply the update:
+
+```bash
+gh workflow run \
+  deploy.yml \
+  --field environment=dev \
+  --field apply_changes=true
+```
+
+Terraform updates Cloud Run to the immutable image produced by the
+apply run while preserving the existing infrastructure.
 
 
 ## Rolling back Cloud Run

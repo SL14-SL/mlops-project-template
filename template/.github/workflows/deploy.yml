@@ -12,6 +12,11 @@ on:
           - dev
           - staging
           - prod
+      apply_changes:
+        description: Apply the Cloud Run deployment after planning
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -45,6 +50,7 @@ jobs:
       TF_VAR_mlflow_tracking_uri: ${{ vars.MLFLOW_TRACKING_URI || '' }}
       TF_VAR_prefect_api_url: ${{ vars.PREFECT_API_URL || '' }}
       DEPLOYMENT_API_KEY: ${{ secrets.API_KEY }}
+      APPLY_CHANGES: ${{ inputs.apply_changes }}
 
     steps:
       - name: Check out repository
@@ -71,7 +77,10 @@ jobs:
             fi
           done
 
-          if [ -z "${DEPLOYMENT_API_KEY:-}" ]; then
+          if (
+            [ "$APPLY_CHANGES" = "true" ]
+            && [ -z "${DEPLOYMENT_API_KEY:-}" ]
+          ); then
             echo "Missing GitHub environment secret: API_KEY"
             exit 1
           fi
@@ -137,6 +146,7 @@ jobs:
           foundation.tfplan
 
       - name: Publish API key to Secret Manager
+        if: ${{ inputs.apply_changes }}
         working-directory: infrastructure/terraform
         shell: bash
         run: |
@@ -176,7 +186,44 @@ jobs:
           -var="deploy_cloud_run=true"
           -var="container_image=${IMAGE_URI}"
 
+      - name: Render Cloud Run deployment plan
+        working-directory: infrastructure/terraform
+        run: >-
+          terraform show
+          -no-color
+          deployment.tfplan
+          >
+          deployment-plan.txt
+
+      - name: Upload Cloud Run deployment plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-${{ inputs.environment }}-${{ github.sha }}
+          path: infrastructure/terraform/deployment-plan.txt
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Write plan summary
+        working-directory: infrastructure/terraform
+        shell: bash
+        run: |
+          {
+            echo "## Terraform deployment plan"
+            echo
+            echo "- Environment: \`${{ inputs.environment }}\`"
+            echo "- Image: \`${IMAGE_URI}\`"
+            echo "- Apply requested: \`${APPLY_CHANGES}\`"
+            echo
+            echo "The complete human-readable plan is available"
+            echo "as a workflow artifact."
+            echo
+            echo '```text'
+            tail -n 12 deployment-plan.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Apply Cloud Run deployment
+        if: ${{ inputs.apply_changes }}
         working-directory: infrastructure/terraform
         run: >-
           terraform apply
@@ -185,6 +232,7 @@ jobs:
           deployment.tfplan
 
       - name: Read deployment outputs
+        if: ${{ inputs.apply_changes }}
         id: deployment
         working-directory: infrastructure/terraform
         shell: bash
@@ -203,6 +251,7 @@ jobs:
           echo "service_uri=${service_uri}" >> "$GITHUB_OUTPUT"
 
       - name: Verify Cloud Run readiness
+        if: ${{ inputs.apply_changes }}
         shell: bash
         run: |
           set -euo pipefail
@@ -221,6 +270,7 @@ jobs:
           fi
 
       - name: Write deployment summary
+        if: ${{ inputs.apply_changes }}
         run: |
           {
             echo "## Google Cloud deployment"

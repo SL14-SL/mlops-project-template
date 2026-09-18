@@ -74,6 +74,7 @@ The template follows Semantic Versioning.
 - publish API keys directly to Secret Manager without storing secret values in Terraform state
 - end-to-end Google Cloud bootstrap and deployment guide
 - approval-aware Cloud Run revision rollback workflow
+- separate Cloud Run planning from explicit deployment apply
 
 ### Changed
 
