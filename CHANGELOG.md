@@ -9,6 +9,8 @@ The template follows Semantic Versioning.
 ### Added
 
 - automated dependency update configuration for Python, GitHub Actions, Docker and Terraform
+- automated weekly dependency updates for Python, GitHub Actions, Docker and Terraform
+- security workflow for Python dependency, secret and infrastructure scanning
 
 ## [0.2.0] - 2026-09-18
 
