@@ -1,0 +1,111 @@
+version: 2
+
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+    groups:
+      template-python:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:15"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+    groups:
+      template-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: /template
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:30"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: terraform
+    directory: /template/infrastructure/terraform
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:45"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: terraform
+    directory: /template/infrastructure/terraform-bootstrap
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5version: 2
+
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+    groups:
+      template-python:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:15"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+    groups:
+      template-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: /template
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:30"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: terraform
+    directory: /template/infrastructure/terraform
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:45"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: terraform
+    directory: /template/infrastructure/terraform-bootstrap
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5

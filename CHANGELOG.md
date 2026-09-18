@@ -6,6 +6,10 @@ The template follows Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- automated dependency update configuration for Python, GitHub Actions, Docker and Terraform
+
 ## [0.2.0] - 2026-09-18
 
 ### Added
