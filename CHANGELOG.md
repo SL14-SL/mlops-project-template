@@ -8,14 +8,29 @@ The template follows Semantic Versioning.
 
 ### Added
 
-- automated dependency update configuration for Python, GitHub Actions, Docker and Terraform
-- automated weekly dependency updates for Python, GitHub Actions, Docker and Terraform
-- security workflow for Python dependency, secret and infrastructure scanning
-- blocking Trivy vulnerability scan for built API container images
+### Changed
 
 ### Fixed
-- outdated Debian runtime packages detected by container vulnerability scanning
-- documented temporary cryptography vulnerability exception required by MLflow
+
+## [0.3.0] - 2026-09-18
+
+### Added
+
+- automated weekly dependency updates for Python, GitHub Actions, Docker and Terraform
+- Python dependency auditing with documented vulnerability exceptions
+- Trivy scanning for dependencies, secrets and infrastructure configuration
+- blocking Trivy vulnerability scans for built API container images
+
+### Changed
+
+- GitHub Actions now use Node.js 24-compatible checkout actions
+- CI runners are pinned to Ubuntu 24.04 for reproducible execution
+- generated-project documentation explains creation and versioning of `uv.lock`
+
+### Fixed
+
+- outdated Debian runtime packages are upgraded during container builds
+- container security scanning accounts for the temporary MLflow cryptography constraint
 
 ## [0.2.0] - 2026-09-18
 
