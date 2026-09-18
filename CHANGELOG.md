@@ -6,80 +6,43 @@ The template follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-18
+
 ### Added
 
-- reusable contracts for ingestion, feature engineering and dataset splitting
-- reusable model training and evaluation contracts
-- framework-independent training pipeline runner
-- immutable lifecycle status model for training-pipeline runs
-- lifecycle tracking for framework-independent training runs
-- versioned JSON serialization for pipeline lifecycle records
-- local and GCS-compatible persistence for pipeline lifecycle records
-- configuration-based repository for pipeline lifecycle records
-- configured training pipeline service with automatic lifecycle persistence
-- thin Prefect adapter for configured training pipelines
-- explicit project-specific training pipeline extension point
-- executable project-specific Prefect training flow entrypoint
-- optional local Prefect server through a Docker Compose profile
-- version-controlled local Prefect training deployment
-- optional persistent local MLflow tracking server
-- shared MLflow training run and result logging adapter
-- approval-gated MLflow model registration
-- explicit challenger assignment and champion promotion for MLflow models
-- direction-aware metric gate for champion promotion
-- MLflow-backed candidate-to-champion evaluation and conditional promotion
-- unified model candidate lifecycle for registration, challenger assignment and champion promotion
-- environment-specific promotion policies for classification and forecasting
-- configuration-driven model lifecycle entrypoint
-- MLflow logging for model evaluation metrics and approval decisions
-- Prefect adapter for the complete MLflow model lifecycle
-- executable Prefect training flow for the complete model lifecycle
-- public MLflow run-context helper for project-specific model trainers
-- project-specific MLflow model artifact logging contract
-- model artifact logger dependency for configured training pipelines
-- model artifact logging inside the active MLflow training run
-- immutable serving-release manifest builder for promoted champion models
-- local and GCS-compatible serving artifact publisher with checksums and cleanup
-- validated serving-release publication with atomic active-pointer activation
-- project-specific serving-release input provider contract
-- serving-release input provider dependency for configured training pipelines
-- automatic serving-release publication after successful champion promotion
-- champion-alias restoration after failed serving-release publication
-- automatic champion restoration when serving-release publication fails
-- end-to-end integration test from real MLflow run to active serving release
-- MLflow 3 logged-model URI support for model artifact adapters
-- direct MLflow 3 logged-model registration without run-artifact fallback
-- optional local Prometheus and Grafana monitoring stack
-- provisioned Prometheus datasource and API overview dashboard
-- Prometheus alerts for API availability, server errors and p95 latency
-- optional local Alertmanager with persistent alert state
-- Prometheus routing for availability, error-rate and latency alerts
-- Prometheus recording rules for API service-level indicators
-- provisioned Grafana SLO dashboard with availability, latency and error budget
-- operational Prometheus metrics for prediction requests, observations and latency
-- Grafana dashboard for prediction throughput, errors and latency
-- Prometheus alerts for sustained prediction errors and latency
-- task-specific output-distribution metrics for classification and forecasting
-- delayed ground-truth feedback contracts and model-performance metrics
-- feature-level drift metrics with project-specific drift extension points
-- task-specific Grafana dashboards for model quality and drift
-- Google Cloud Terraform foundation for required APIs, Artifact Registry and GCS
-- Cloud Run infrastructure with Secret Manager integration and health probes
-- protected GCS remote-state bootstrap for Terraform
-- reproducible Terraform provider lock files
-- local Make targets and GitHub Actions validation for Terraform modules
-- two-phase Terraform deployment for bootstrapping Artifact Registry before Cloud Run
-- keyless GitHub Actions authentication through Google Workload Identity Federation
-- manual keyless GitHub Actions deployment to Artifact Registry and Cloud Run
-- publish API keys directly to Secret Manager without storing secret values in Terraform state
-- end-to-end Google Cloud bootstrap and deployment guide
-- approval-aware Cloud Run revision rollback workflow
-- separate Cloud Run planning from explicit deployment apply
-- operations runbook for Cloud Run, serving releases and deployment incidents
+- reusable contracts for data ingestion, feature engineering, splitting, model training and evaluation
+- framework-independent training pipeline with lifecycle tracking, serialization and local or GCS-compatible persistence
+- Prefect orchestration for project-specific training and complete model lifecycle execution
+- local Prefect and MLflow services through optional Docker Compose profiles
+- MLflow experiment logging, model artifact logging and approval-gated model registration
+- challenger assignment, champion promotion and environment-specific promotion policies
+- MLflow 3 logged-model URI support and end-to-end MLflow lifecycle integration tests
+- immutable serving-release manifests, checksummed artifact publication and atomic active-release pointers
+- automatic serving-release publication with champion restoration after publication failures
+- local Prometheus, Grafana and Alertmanager monitoring stack
+- API availability, error-rate, latency and service-level objective monitoring
+- operational prediction metrics and task-specific output-distribution dashboards
+- delayed ground-truth feedback contracts and classification or forecasting performance metrics
+- feature-level drift metrics with project-specific extension points
+- Google Cloud Terraform infrastructure for Artifact Registry, GCS, Secret Manager and Cloud Run
+- protected GCS remote-state bootstrap and reproducible Terraform provider locks
+- keyless GitHub Actions authentication through Workload Identity Federation
+- two-phase Artifact Registry and Cloud Run deployment with separate plan and apply execution
+- Cloud Run revision rollback workflow
+- Google Cloud deployment guide and operations runbook
 
 ### Changed
 
+- unified the training, registration, promotion and serving-release lifecycle
+- separated infrastructure bootstrapping from Cloud Run deployment
+- separated Cloud Run planning from explicit deployment approval
+- moved API-key publication outside Terraform to prevent secret values from entering Terraform state
+- expanded template CI to validate generated classification and forecasting projects
+
 ### Fixed
+
+- restore the previous MLflow champion when serving-release publication fails
+- register MLflow 3 logged models directly without run-artifact fallback
 
 ## [0.1.0] - 2026-09-15
 

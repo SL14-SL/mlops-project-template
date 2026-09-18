@@ -1,6 +1,6 @@
 [project]
 name = "mlops-project-template"
-version = "0.1.0"
+version = "0.2.0"
 description = "Reusable project template for production-oriented classification and forecasting systems"
 requires-python = ">=3.12,<3.13"
 dependencies = []
