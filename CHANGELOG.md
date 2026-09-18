@@ -11,6 +11,7 @@ The template follows Semantic Versioning.
 - automated dependency update configuration for Python, GitHub Actions, Docker and Terraform
 - automated weekly dependency updates for Python, GitHub Actions, Docker and Terraform
 - security workflow for Python dependency, secret and infrastructure scanning
+- blocking Trivy vulnerability scan for built API container images
 
 ## [0.2.0] - 2026-09-18
 

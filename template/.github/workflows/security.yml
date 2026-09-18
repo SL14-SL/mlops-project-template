@@ -64,3 +64,29 @@ jobs:
           ignore-unfixed: true
           format: table
           exit-code: "1"
+
+  container-image:
+    name: Scan container image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Build API image
+        run: >-
+          docker build
+          --tag "mlops-api-security-scan:${{ github.sha }}"
+          .
+
+      - name: Scan API image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: "mlops-api-security-scan:${{ github.sha }}"
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: "1"

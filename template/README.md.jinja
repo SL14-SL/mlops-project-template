@@ -59,6 +59,11 @@ Synchronize the project environment:
 make sync
 ```
 
+`make sync` runs `uv sync`. During the initial setup, it creates the
+reproducible uv.lock dependency lock file. Commit this file to version
+control before running CI or building the container image.
+
+
 Run all required quality checks:
 
 ```bash
