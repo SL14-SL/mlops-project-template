@@ -13,6 +13,10 @@ The template follows Semantic Versioning.
 - security workflow for Python dependency, secret and infrastructure scanning
 - blocking Trivy vulnerability scan for built API container images
 
+### Fixed
+- outdated Debian runtime packages detected by container vulnerability scanning
+- documented temporary cryptography vulnerability exception required by MLflow
+
 ## [0.2.0] - 2026-09-18
 
 ### Added
