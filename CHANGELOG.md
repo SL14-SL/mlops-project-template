@@ -75,6 +75,7 @@ The template follows Semantic Versioning.
 - end-to-end Google Cloud bootstrap and deployment guide
 - approval-aware Cloud Run revision rollback workflow
 - separate Cloud Run planning from explicit deployment apply
+- operations runbook for Cloud Run, serving releases and deployment incidents
 
 ### Changed
 
