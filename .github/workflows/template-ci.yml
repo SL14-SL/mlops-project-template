@@ -11,7 +11,7 @@ permissions:
 jobs:
   generate-and-test:
     name: Test ${{ matrix.task_type }} project
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     strategy:
@@ -28,7 +28,7 @@ jobs:
 
     steps:
       - name: Check out template repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7

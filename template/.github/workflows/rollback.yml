@@ -29,7 +29,7 @@ concurrency:
 jobs:
   rollback:
     name: Roll back ${{ inputs.environment }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: ${{ inputs.environment }}
 
@@ -43,7 +43,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Validate rollback configuration
         shell: bash

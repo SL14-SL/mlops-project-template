@@ -19,12 +19,12 @@ concurrency:
 jobs:
   python-dependencies:
     name: Audit Python dependencies
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -47,12 +47,12 @@ jobs:
 
   repository-scan:
     name: Scan repository
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Scan dependencies, secrets and configuration
         uses: aquasecurity/trivy-action@v0.36.0
