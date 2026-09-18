@@ -96,6 +96,17 @@ jobs:
         working-directory: generated/${{ matrix.project_slug }}
         run: docker compose ps api
 
+      - name: Scan generated API image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: "${{ matrix.project_slug }}-api:local"
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: "1"
+
       - name: Stop Compose stack
         if: always()
         working-directory: generated/${{ matrix.project_slug }}
