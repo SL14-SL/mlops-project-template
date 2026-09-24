@@ -2,6 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from threading import RLock
 
+from ..monitoring.serving import set_serving_readiness
 from .serving_bundle import (
     ServingBundle,
     validate_serving_bundle,
@@ -36,6 +37,7 @@ class ModelManager:
         self._last_reload_error: str | None = None
         self._state_lock = RLock()
         self._reload_lock = RLock()
+        set_serving_readiness(False)
 
     @property
     def ready(self) -> bool:
@@ -78,12 +80,14 @@ class ModelManager:
                 with self._state_lock:
                     self._last_reload_error = str(exc)
 
+                set_serving_readiness(False)
                 raise
 
             with self._state_lock:
                 self._bundle = bundle
                 self._last_reload_error = None
 
+            set_serving_readiness(True)
             return bundle
 
     def replace_bundle(
@@ -97,6 +101,7 @@ class ModelManager:
             self._bundle = bundle
             self._last_reload_error = None
 
+        set_serving_readiness(True)
         return bundle
 
     def reload(self) -> ReloadResult:
@@ -123,6 +128,10 @@ class ModelManager:
                         else None
                     )
 
+                set_serving_readiness(
+                    active_release_id is not None
+                )
+
                 return ReloadResult(
                     success=False,
                     previous_release_id=previous_release_id,
@@ -133,6 +142,8 @@ class ModelManager:
             with self._state_lock:
                 self._bundle = candidate_bundle
                 self._last_reload_error = None
+
+            set_serving_readiness(True)
 
             return ReloadResult(
                 success=True,

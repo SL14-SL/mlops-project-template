@@ -1,4 +1,12 @@
-from prometheus_client import Counter, Histogram
+from prometheus_client import Counter, Gauge, Histogram
+
+SERVING_READY = Gauge(
+    "mlops_serving_ready",
+    (
+        "Whether a complete serving bundle "
+        "is currently active."
+    ),
+)
 
 REQUEST_COUNT = Counter(
     "mlops_api_requests_total",
@@ -63,3 +71,11 @@ def observe_request(
         method=normalized_method,
         path=path,
     ).observe(latency_seconds)
+
+def set_serving_readiness(
+    is_ready: bool,
+) -> None:
+    """Update the current serving-readiness state."""
+    SERVING_READY.set(
+        1 if is_ready else 0
+    )
