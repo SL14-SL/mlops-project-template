@@ -3,6 +3,15 @@ project:
   slug: "{{ project_slug }}"
   task_type: "{{ task_type }}"
 
+notifications:
+  enabled: true
+  log_events: true
+  fail_on_error: false
+  webhook:
+    enabled: false
+    url: "${LIFECYCLE_WEBHOOK_URL:-}"
+    timeout_seconds: 5.0
+    
 paths:
   data_root: "data"
   raw: "data/raw"

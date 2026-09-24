@@ -22,6 +22,7 @@ The generated project provides a reusable MLOps foundation with:
 - API-key authentication
 - request IDs and safe error responses
 - Prometheus metrics
+- structured model-lifecycle logging and optional webhook notifications
 - privacy-safe prediction event logging
 - Docker and Docker Compose support
 - automated unit and integration tests
@@ -211,6 +212,47 @@ one immutable, validated unit.
 The active-release pointer determines which release is loaded by the API.
 Replacing the pointer enables controlled promotion and rollback without
 mixing artifacts from different model versions.
+
+## Model lifecycle notifications
+
+Training lifecycle events are written to the application logs and can
+optionally be delivered to an HTTP webhook.
+
+The following events are available:
+
+- pipeline failure
+- candidate rejection by the quality gate
+- Challenger registration without promotion
+- successful Champion promotion
+- successful serving-release publication
+
+Webhook delivery is disabled by default. To enable it, update the appropriate
+environment configuration:
+
+```yaml
+notifications:
+  enabled: true
+  log_events: true
+  fail_on_error: false
+  webhook:
+    enabled: true
+    url: "${LIFECYCLE_WEBHOOK_URL:-}"
+    timeout_seconds: 5.0
+```
+
+Provide the URL only through the runtime environment:
+
+```dotenv
+LIFECYCLE_WEBHOOK_URL=https://example.com/your-secret-webhook
+```
+
+Do not commit webhook URLs because they commonly contain credentials or secret
+tokens.
+
+With `fail_on_error: false`, a temporary notification outage is logged but
+does not invalidate an otherwise successful training or promotion lifecycle.
+Set it to `true` only when notification delivery is a mandatory operational
+requirement.
 
 ## Project structure
 
