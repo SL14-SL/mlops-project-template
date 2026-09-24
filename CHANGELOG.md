@@ -13,6 +13,8 @@ The template follows Semantic Versioning.
 ### Changed
 
 ### Fixed
+- Expose serving-bundle readiness as a Prometheus gauge and alert when the API
+  is running without an active serving bundle.
 
 ## [0.3.0] - 2026-09-18
 
