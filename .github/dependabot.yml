@@ -10,10 +10,27 @@ updates:
       timezone: Europe/Berlin
     open-pull-requests-limit: 5
     groups:
-      template-python:
+      gcs-filesystem-stack:
+        patterns:
+          - fsspec
+          - gcsfs
         update-types:
           - minor
           - patch
+
+      template-python:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - fsspec
+          - gcsfs
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: pandas
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /
