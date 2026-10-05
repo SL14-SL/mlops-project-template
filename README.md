@@ -6,6 +6,24 @@ time-series forecasting projects.
 The template provides a shared MLOps foundation while keeping data,
 feature engineering, training and business logic project-specific.
 
+## Quick start
+
+Generate a new project directly from the latest reviewed template release:
+
+```bash
+uvx copier copy \
+  --trust \
+  --vcs-ref v0.4.2 \
+  https://github.com/SL14-SL/mlops-project-template.git \
+  my-mlops-project
+```
+
+Copier will prompt for the project name, repository slug, task type,
+Python version and author information.
+
+Use a tagged release for real projects. The `main` branch may contain
+changes intended for the next template release.
+
 ## Supported project types
 
 The template currently supports:
@@ -77,14 +95,19 @@ generating a project:
 
 ## Requirements
 
-Local template development requires:
+Using the template requires:
 
-- Python 3.12.9
-- uv 0.12.13
+- Python 3.12
+- uv
 - Copier
 - GNU Make
 - Docker
 - Docker Compose
+
+Local template development uses:
+
+- Python 3.12.9
+- uv 0.12.13
 
 Install and synchronize the template development environment:
 
@@ -93,6 +116,8 @@ uv sync
 ```
 
 ## Generate a classification project
+
+From a local clone of this repository:
 
 ```bash
 uv run copier copy --defaults \
@@ -116,6 +141,8 @@ make api-config
 ```
 
 ## Generate a forecasting project
+
+From a local clone of this repository:
 
 ```bash
 uv run copier copy --defaults \
@@ -203,6 +230,18 @@ The two CI workflows serve different purposes:
 - `.github/workflows/template-ci.yml` tests the Copier template itself.
 - `template/.github/workflows/ci.yml` is included in generated projects.
 
+## Reference implementations
+
+Two public reference projects demonstrate how the generated foundation
+can be extended with project-specific machine-learning logic:
+
+- [Time Series Forecasting MLOps Blueprint](https://github.com/SL14-SL/mlops-sales-forecasting)
+- [Classification & Decisioning MLOps Blueprint](https://github.com/SL14-SL/mlops-churn-prediction)
+
+These projects include domain-specific data pipelines, feature
+engineering, training, monitoring, retraining and operational
+documentation built on top of the shared template architecture.
+
 ## Development workflow
 
 When changing a shared component:
@@ -233,6 +272,7 @@ uv run copier copy --defaults \
 cd generated/classification-template-test
 
 cp .env.example .env
+
 make sync
 make check
 make api-config
@@ -258,26 +298,7 @@ Before applying a template update to a real project:
 4. Review every generated diff.
 5. Resolve conflicts without overwriting project-specific logic.
 6. Run the complete project test suite.
-7. Rebuild and test the API container.
 
-Copier updates should never be applied directly to an uncommitted
-production project.
+## License
 
-## Secrets
-
-Real secrets must not be committed.
-
-Generated projects provide `.env.example` only as documentation. Create
-a local `.env` file and replace all example credentials before using the
-application outside local development.
-
-Production environments should inject secrets through the selected
-deployment platform rather than copying `.env` into a container image.
-
-## Status
-
-The shared serving and API foundation is implemented.
-
-Data pipelines, training pipelines, model evaluation, business
-monitoring, orchestration and cloud infrastructure remain
-project-specific extension points.
+This project is available under the [MIT License](LICENSE).
