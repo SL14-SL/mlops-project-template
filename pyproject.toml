@@ -12,7 +12,7 @@ dev = [
     "fsspec==2026.9.0",
     "gcsfs==2026.10.0",
     "httpx2>=2.12.0",
-    "mlflow==3.17.0",
+    "mlflow==3.17.2",
     "pandas==2.3.3",
     "pip-audit==2.10.1",
     "prefect>=3,<4",
