@@ -8,7 +8,7 @@ dependencies = []
 [dependency-groups]
 dev = [
     "copier>=9,<10",
-    "fastapi==0.143.0",
+    "fastapi==0.161.1",
     "fsspec==2026.9.0",
     "gcsfs==2026.10.0",
     "httpx2>=2.12.0",
