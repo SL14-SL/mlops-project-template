@@ -217,3 +217,30 @@ def test_remove_file_ignores_missing_gcs_object(
     filesystem.remove_file("gs://example-bucket/missing.txt")
 
     fake_filesystem.rm.assert_not_called()
+
+
+def test_failed_replacement_preserves_existing_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    file_path = tmp_path / "active_serving_release.json"
+    original = '{"release_id": "release-1"}\n'
+    file_path.write_text(original, encoding="utf-8")
+
+    def fail_replace(source: object, target: object) -> None:
+        assert file_path.read_text(encoding="utf-8") == original
+        raise OSError("Simulated replacement failure")
+
+    monkeypatch.setattr(filesystem.os, "replace", fail_replace)
+
+    with pytest.raises(
+        OSError,
+        match="Simulated replacement failure",
+    ):
+        filesystem.write_text(
+            str(file_path),
+            '{"release_id": "release-2"}\n',
+        )
+
+    assert file_path.read_text(encoding="utf-8") == original
+    assert list(tmp_path.iterdir()) == [file_path]
