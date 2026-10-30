@@ -1,4 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier
 
 import pytest
 
@@ -177,3 +179,47 @@ def test_activation_records_previous_release(
     assert result.release_id == "release-2"
     assert result.previous_release_id == "release-1"
     assert result.operation is ReleaseOperation.ROLLBACK
+
+
+def test_concurrent_local_activations_preserve_release_chain(
+    tmp_path: Path,
+) -> None:
+    for release_id in ("release-0", "release-1", "release-2"):
+        create_manifest(tmp_path, release_id)
+
+    activate_release_pointer(
+        models_path=str(tmp_path),
+        release_id="release-0",
+    )
+    barrier = Barrier(2)
+
+    def activate(release_id: str) -> ActiveReleasePointer:
+        barrier.wait(timeout=10)
+
+        return activate_release_pointer(
+            models_path=str(tmp_path),
+            release_id=release_id,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [
+            executor.submit(activate, release_id)
+            for release_id in ("release-1", "release-2")
+        ]
+        results = [future.result(timeout=15) for future in futures]
+
+    first = next(
+        pointer
+        for pointer in results
+        if pointer.previous_release_id == "release-0"
+    )
+    second = next(
+        pointer
+        for pointer in results
+        if pointer.release_id != first.release_id
+    )
+
+    assert second.previous_release_id == first.release_id
+    assert load_active_release_pointer(
+        models_path=str(tmp_path),
+    ) == second

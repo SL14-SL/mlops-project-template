@@ -1,6 +1,9 @@
+from collections.abc import Generator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
 from ...configs.paths import join_uri
@@ -163,7 +166,25 @@ def load_active_release_id(
     ).release_id
 
 
-def activate_release_pointer(
+@contextmanager
+def _local_activation_lock(models_path: str) -> Generator[None, None, None]:
+    """Serialize local activations across threads and processes."""
+    import fcntl
+
+    pointer_path = Path(active_pointer_path(models_path))
+    pointer_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = pointer_path.with_name(f"{pointer_path.name}.lock")
+
+    with lock_path.open("a", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def _activate_release_pointer_unlocked(
     *,
     models_path: str,
     release_id: str,
@@ -223,3 +244,31 @@ def activate_release_pointer(
         )
 
     return stored_pointer
+
+
+def activate_release_pointer(
+    *,
+    models_path: str,
+    release_id: str,
+    operation: ReleaseOperation = ReleaseOperation.ACTIVATION,
+    previous_release_id: str | None = None,
+    updated_at_utc: str | None = None,
+) -> ActiveReleasePointer:
+    """Activate a release, serializing local pointer updates."""
+    if str(models_path).startswith("gs://"):
+        return _activate_release_pointer_unlocked(
+            models_path=models_path,
+            release_id=release_id,
+            operation=operation,
+            previous_release_id=previous_release_id,
+            updated_at_utc=updated_at_utc,
+        )
+
+    with _local_activation_lock(models_path):
+        return _activate_release_pointer_unlocked(
+            models_path=models_path,
+            release_id=release_id,
+            operation=operation,
+            previous_release_id=previous_release_id,
+            updated_at_utc=updated_at_utc,
+        )
