@@ -59,6 +59,14 @@ Generated projects include:
 - GitHub Actions CI
 - unit and integration tests
 
+Local serving-release pointer updates use atomic file replacement and a
+file lock to serialize activations across processes. GCS activations use
+generation preconditions to detect concurrent pointer changes and report
+a conflict instead of overwriting a newer activation.
+
+Local behavior and simulated GCS conflicts are covered by automated tests.
+Validation against a real GCS bucket remains pending.
+
 ## Template boundaries
 
 The template intentionally separates reusable infrastructure from
