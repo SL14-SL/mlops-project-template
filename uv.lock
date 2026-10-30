@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = "==3.12.*"
 
 [[package]]
@@ -1522,6 +1522,7 @@ dev = [
     { name = "fastapi" },
     { name = "fsspec" },
     { name = "gcsfs" },
+    { name = "google-cloud-storage" },
     { name = "httpx2" },
     { name = "mlflow" },
     { name = "pandas" },
@@ -1543,6 +1544,7 @@ dev = [
     { name = "fastapi", specifier = "==0.161.1" },
     { name = "fsspec", specifier = "==2026.9.0" },
     { name = "gcsfs", specifier = "==2026.10.1" },
+    { name = "google-cloud-storage", specifier = ">=3,<4" },
     { name = "httpx2", specifier = ">=2.12.0" },
     { name = "mlflow", specifier = "==3.17.2" },
     { name = "pandas", specifier = "==2.3.3" },

@@ -1,11 +1,16 @@
+import json
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Barrier
+from unittest.mock import MagicMock
 
 import pytest
+from google.api_core.exceptions import PreconditionFailed
 
+from {{ package_name }}.inference.releases import pointer as pointer_module
 from {{ package_name }}.inference.releases.pointer import (
     ActiveReleasePointer,
+    ReleaseActivationConflict,
     ReleaseOperation,
     activate_release_pointer,
     load_active_release_id,
@@ -223,3 +228,109 @@ def test_concurrent_local_activations_preserve_release_chain(
     assert load_active_release_pointer(
         models_path=str(tmp_path),
     ) == second
+
+
+@pytest.mark.parametrize("existing_generation", [None, 17])
+def test_gcs_activation_uses_generation_precondition(
+    monkeypatch: pytest.MonkeyPatch,
+    existing_generation: int | None,
+) -> None:
+    bucket = MagicMock()
+
+    if existing_generation is None:
+        bucket.get_blob.return_value = None
+    else:
+        current_blob = bucket.get_blob.return_value
+        current_blob.generation = existing_generation
+        current_payload = build_valid_pointer().to_dict()
+        current_payload["release_id"] = "release-0"
+        current_blob.download_as_text.return_value = json.dumps(current_payload)
+
+    monkeypatch.setattr(pointer_module, "_gcs_bucket", lambda _: bucket)
+    monkeypatch.setattr(pointer_module, "file_exists", lambda _: True)
+
+    result = activate_release_pointer(
+        models_path="gs://example-bucket/models",
+        release_id="release-3",
+        updated_at_utc=TIMESTAMP,
+    )
+
+    assert result.release_id == "release-3"
+    assert result.previous_release_id == (
+        None if existing_generation is None else "release-0"
+    )
+    bucket.get_blob.assert_called_once_with(
+        "models/active_serving_release.json"
+    )
+    bucket.blob.assert_called_once_with(
+        "models/active_serving_release.json"
+    )
+    bucket.blob.return_value.upload_from_string.assert_called_once_with(
+        json.dumps(result.to_dict(), indent=2, sort_keys=True) + "\n",
+        content_type="application/json",
+        if_generation_match=existing_generation or 0,
+    )
+
+    if existing_generation is not None:
+        bucket.get_blob.return_value.download_as_text.assert_called_once_with(
+            encoding="utf-8",
+            if_generation_match=existing_generation,
+        )
+
+
+@pytest.mark.parametrize("existing_generation", [None, 17])
+def test_gcs_activation_reports_concurrent_update(
+    monkeypatch: pytest.MonkeyPatch,
+    existing_generation: int | None,
+) -> None:
+    bucket = MagicMock()
+
+    if existing_generation is None:
+        bucket.get_blob.return_value = None
+    else:
+        current_blob = bucket.get_blob.return_value
+        current_blob.generation = existing_generation
+        current_blob.download_as_text.return_value = json.dumps(
+            build_valid_pointer().to_dict()
+        )
+
+    bucket.blob.return_value.upload_from_string.side_effect = (
+        PreconditionFailed("Concurrent update")
+    )
+    monkeypatch.setattr(pointer_module, "_gcs_bucket", lambda _: bucket)
+    monkeypatch.setattr(pointer_module, "file_exists", lambda _: True)
+
+    with pytest.raises(
+        ReleaseActivationConflict,
+        match="Active release changed during activation",
+    ):
+        activate_release_pointer(
+            models_path="gs://example-bucket/models",
+            release_id="release-3",
+        )
+
+    assert bucket.blob.return_value.upload_from_string.call_count == 1
+
+
+def test_gcs_activation_aborts_if_pointer_changes_during_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bucket = MagicMock()
+    current_blob = bucket.get_blob.return_value
+    current_blob.generation = 17
+    current_blob.download_as_text.side_effect = PreconditionFailed(
+        "Concurrent update"
+    )
+    monkeypatch.setattr(pointer_module, "_gcs_bucket", lambda _: bucket)
+    monkeypatch.setattr(pointer_module, "file_exists", lambda _: True)
+
+    with pytest.raises(
+        ReleaseActivationConflict,
+        match="changed while reading",
+    ):
+        activate_release_pointer(
+            models_path="gs://example-bucket/models",
+            release_id="release-3",
+        )
+
+    bucket.blob.assert_not_called()
