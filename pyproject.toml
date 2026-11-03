@@ -8,7 +8,7 @@ dependencies = []
 [dependency-groups]
 dev = [
     "copier>=9,<10",
-    "fastapi==0.161.1",
+    "fastapi==0.154.0",
     "fsspec==2026.9.0",
     "gcsfs==2026.10.1",
     "google-cloud-storage>=3,<4",
@@ -16,7 +16,7 @@ dev = [
     "mlflow==3.17.2",
     "pandas==2.3.3",
     "pip-audit==2.10.1",
-    "prefect>=3,<4",
+    "prefect==3.8.8",
     "prometheus-client==0.26.0",
     "pydantic>=2.12,<3",
     "pytest>=9.0.3,<10",
