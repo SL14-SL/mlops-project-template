@@ -12,6 +12,25 @@ The template follows Semantic Versioning.
 
 ### Fixed
 
+## [0.5.0] - 2026-11-03
+
+### Added
+
+- selectable API, deployment and end-to-end MLOps project tiers
+- independent classification and forecasting selection for every tier
+- CI coverage for all six project variants
+
+### Changed
+
+- generated files, dependencies, Compose services, Make targets and documentation
+  follow the selected project tier
+- cloud release export no longer depends on training promotion modules
+
+### Fixed
+
+- preserve end-to-end scope when updating projects without a project-tier answer
+- restrict monitoring-stack exclusions to the project root
+
 ## [0.3.1] - 2026-09-24
 
 ### Added
