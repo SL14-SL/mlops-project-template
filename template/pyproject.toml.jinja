@@ -13,7 +13,9 @@ dependencies = [
     "httpx2>=2.12.0",
     "mlflow==3.17.2",
     "pandas==2.3.3",
+{% if project_tier == "end_to_end" %}
     "prefect==3.8.8",
+{% endif %}
     "prometheus-client==0.26.0",
     "pyarrow==25.0.1",
     "pydantic>=2.12,<3",

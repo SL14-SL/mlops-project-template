@@ -310,3 +310,27 @@ Before applying a template update to a real project:
 ## License
 
 This project is available under the [MIT License](LICENSE).
+
+## Project tiers
+
+Select `project_tier` independently from `task_type`:
+
+| Tier | Scope |
+| --- | --- |
+| `api` | Serving bundles, FastAPI, authentication, health, metrics, Docker and tests |
+| `deployment` | API plus Terraform, Cloud Run deployment/rollback and monitoring stack |
+| `end_to_end` | Deployment plus training interfaces, Prefect, tracking, registry and promotion |
+
+Existing projects without this answer default to `end_to_end`. Project-specific
+data ingestion, feature engineering, training and retraining policy still require
+implementation; selecting the full tier does not implement a business use case.
+
+MLflow remains an inference dependency in all tiers. The MLflow server Compose
+service and Prefect are generated only for `end_to_end`. API projects consume
+prepared serving releases. Deployment projects can export existing releases
+without importing training or promotion modules.
+
+To upgrade a generated project, commit its current state and run
+`copier update --defaults --data project_tier=deployment` (or `end_to_end`).
+Review the diff and regenerate the dependency lock before committing. Downgrades
+can remove generated files; migrate custom code before changing to a smaller tier.

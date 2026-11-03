@@ -10,18 +10,19 @@ permissions:
 
 jobs:
   generate-and-test:
-    name: Test ${{ matrix.task_type }} project
+    name: Test ${{ matrix.task_type }} / ${{ matrix.project_tier }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     strategy:
       fail-fast: false
       matrix:
+        task_type: [classification, forecasting]
+        project_tier: [api, deployment, end_to_end]
         include:
           - task_type: classification
             project_name: Classification Template CI
             project_slug: classification-template-ci
-
           - task_type: forecasting
             project_name: Forecasting Template CI
             project_slug: forecasting-template-ci
@@ -49,8 +50,16 @@ jobs:
             --data project_name="${{ matrix.project_name }}" \
             --data project_slug="${{ matrix.project_slug }}" \
             --data task_type="${{ matrix.task_type }}" \
+            --data project_tier="${{ matrix.project_tier }}" \
             . \
             "generated/${{ matrix.project_slug }}"
+
+      - name: Verify generated tier scope
+        run: >-
+          uv run python scripts/check_project_tier.py
+          "generated/${{ matrix.project_slug }}"
+          "${{ matrix.project_tier }}"
+          "$(echo '${{ matrix.project_slug }}' | tr '-' '_')"
 
       - name: Create local environment file
         working-directory: generated/${{ matrix.project_slug }}
@@ -66,7 +75,7 @@ jobs:
 
       - name: Validate Compose configuration
         working-directory: generated/${{ matrix.project_slug }}
-        run: docker compose config
+        run: docker compose --profile "*" config --quiet
 
       - name: Build and start API
         working-directory: generated/${{ matrix.project_slug }}

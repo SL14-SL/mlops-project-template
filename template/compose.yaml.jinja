@@ -28,6 +28,7 @@ services:
       start_period: 15s
       retries: 3
 
+{% if project_tier == "end_to_end" %}
   prefect-server:
     build:
       context: .
@@ -102,7 +103,8 @@ services:
       timeout: 5s
       start_period: 30s
       retries: 5
-      
+{% endif %}
+{% if project_tier != "api" %}
   prometheus:
     image: prom/prometheus:${PROMETHEUS_VERSION:-v3.5.0}
     profiles:
@@ -161,9 +163,16 @@ services:
     depends_on:
       prometheus:
         condition: service_started
+{% endif %}
 
+{% if project_tier != "api" %}
 volumes:
+{% if project_tier == "end_to_end" %}
   mlflow-data:
+{% endif %}
+{% if project_tier != "api" %}
   prometheus-data:
   grafana-data:
   alertmanager-data:
+{% endif %}
+{% endif %}

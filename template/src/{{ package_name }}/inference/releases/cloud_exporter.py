@@ -22,7 +22,7 @@ from .pointer import (
     ReleaseOperation,
     active_pointer_path,
 )
-from .publisher import PublishedServingRelease
+from .publication import PublishedServingRelease
 from .repository import (
     activate_release,
     load_active_release_manifest,

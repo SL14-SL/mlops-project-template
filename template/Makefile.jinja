@@ -64,8 +64,10 @@ api-down: ## Stop and remove the local Compose stack
 
 
 .PHONY: api-restart
-api-restart: api-down api-up ## Rebuild and restart the API
+api-restart: ## Restart the existing API container
+	$(COMPOSE) restart api
 
+{% if project_tier == "end_to_end" %}
 .PHONY: prefect-up
 prefect-up: ## Build and start the local Prefect server
 	$(COMPOSE) --profile orchestration up --detach --build prefect-server
@@ -117,7 +119,8 @@ mlflow-logs: ## Follow MLflow server logs
 .PHONY: mlflow-down
 mlflow-down: ## Stop and remove the MLflow stack
 	$(COMPOSE) --profile tracking down
-
+{% endif %}
+{% if project_tier != "api" %}
 .PHONY: monitoring-config
 monitoring-config: ## Validate the monitoring Compose configuration
 	$(COMPOSE) --profile monitoring config
@@ -168,3 +171,4 @@ terraform-init: ## Initialize Terraform without a remote backend
 terraform-validate: terraform-init terraform-fmt ## Validate Terraform modules
 	terraform -chdir=infrastructure/terraform-bootstrap validate
 	terraform -chdir=infrastructure/terraform validate
+{% endif %}

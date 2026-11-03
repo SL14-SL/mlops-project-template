@@ -15,7 +15,9 @@ from ...inference.model_manager import (
 )
 from ...inference.prediction_service import PredictionService
 from ...inference.serving_bundle import ServingBundle
+{% if project_tier == "end_to_end" -%}
 from ...monitoring.model_observability import observe_model_outputs
+{% endif -%}
 from ...monitoring.prediction import observe_prediction
 from ...monitoring.prediction_event_logger import (
     PredictionEvent,
@@ -106,6 +108,7 @@ def _record_prediction_event(
             _request_id(request),
         )
 
+{% if project_tier == "end_to_end" %}
 def _record_model_outputs(
     *,
     response: PredictionResponse,
@@ -119,7 +122,7 @@ def _record_model_outputs(
             "Could not record model output metrics | request_id=%s",
             _request_id(request),
         )
-
+{% endif %}
 @router.post(
     "/predict",
     response_model=PredictionResponse,
@@ -190,11 +193,12 @@ def predict(
         )
         raise
 
+{% if project_tier == "end_to_end" %}
     _record_model_outputs(
         response=response,
         request=http_request,
     )
-
+{% endif %}
     _record_prediction_event(
         request=http_request,
         prediction_request=request,
