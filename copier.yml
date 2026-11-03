@@ -74,7 +74,7 @@ _exclude:
   - "{{ '.github/workflows/deploy.yml' if project_tier == \"api\" else '__tier_exclusion_disabled__' }}"
   - "{{ '.github/workflows/rollback.yml' if project_tier == \"api\" else '__tier_exclusion_disabled__' }}"
   - "{{ '.github/workflows/terraform.yml' if project_tier == \"api\" else '__tier_exclusion_disabled__' }}"
-  - "{{ 'monitoring' if project_tier == \"api\" else '__tier_exclusion_disabled__' }}"
+  - "{{ '/monitoring' if project_tier == \"api\" else '__tier_exclusion_disabled__' }}"
   - "{{ 'docs/cloud-deployment.md' if project_tier == \"api\" else '__tier_exclusion_disabled__' }}"
   - "{{ 'docs/cloud-teardown.md' if project_tier == \"api\" else '__tier_exclusion_disabled__' }}"
   - "{{ 'docs/operations-runbook.md' if project_tier == \"api\" else '__tier_exclusion_disabled__' }}"
