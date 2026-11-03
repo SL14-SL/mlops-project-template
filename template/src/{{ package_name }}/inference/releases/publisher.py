@@ -22,7 +22,6 @@ from .builder import (
 )
 from .contracts import (
     ArtifactReference,
-    ServingReleaseManifest,
     TaskType,
 )
 from .manifest import write_serving_manifest
