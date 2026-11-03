@@ -1,5 +1,4 @@
 from collections.abc import Mapping
-from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 
@@ -23,15 +22,14 @@ from .builder import (
 )
 from .contracts import (
     ArtifactReference,
-    ServingReleaseManifest,
     TaskType,
 )
 from .manifest import write_serving_manifest
 from .pointer import (
-    ActiveReleasePointer,
     ReleaseOperation,
     load_active_release_pointer,
 )
+from .publication import PublishedServingRelease as PublishedServingRelease
 from .repository import (
     activate_release,
     load_release_manifest,
@@ -40,15 +38,6 @@ from .storage import (
     build_artifact_reference,
     build_release_paths,
 )
-
-
-@dataclass(frozen=True)
-class PublishedServingRelease:
-    """Fully persisted and activated serving release."""
-
-    manifest: ServingReleaseManifest
-    release_root: str
-    active_pointer: ActiveReleasePointer
 
 
 def _new_release_id() -> str:

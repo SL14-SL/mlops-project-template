@@ -39,6 +39,15 @@ task_type:
     Time-series forecasting: forecasting
   default: classification
 
+project_tier:
+  type: str
+  help: Scope of the generated project
+  choices:
+    "1 - Model API": api
+    "2 - Deployment and operations": deployment
+    "3 - End-to-end MLOps": end_to_end
+  default: end_to_end
+
 python_version:
   type: str
   help: Python version used by the project
@@ -53,3 +62,44 @@ _message_after_copy: |
     uv sync
     uv run ruff check .
     uv run pytest
+
+_exclude:
+  - "**/*.py[co]"
+  - "**/.DS_Store"
+  - "{{ '**/.terraform' if True else '__tier_exclusion_disabled__' }}"
+  - "{{ '**/*.tfstate*' if True else '__tier_exclusion_disabled__' }}"
+  - "{{ '**/.venv' if True else '__tier_exclusion_disabled__' }}"
+  - "{{ '**/__pycache__' if True else '__tier_exclusion_disabled__' }}"
+  - "{{ 'infrastructure' if (project_tier | default('end_to_end')) == \"api\" else '__tier_exclusion_disabled__' }}"
+  - "{{ '.github/workflows/deploy.yml' if (project_tier | default('end_to_end')) == \"api\" else '__tier_exclusion_disabled__' }}"
+  - "{{ '.github/workflows/rollback.yml' if (project_tier | default('end_to_end')) == \"api\" else '__tier_exclusion_disabled__' }}"
+  - "{{ '.github/workflows/terraform.yml' if (project_tier | default('end_to_end')) == \"api\" else '__tier_exclusion_disabled__' }}"
+  - "{{ '/monitoring' if (project_tier | default('end_to_end')) == \"api\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'docs/cloud-deployment.md' if (project_tier | default('end_to_end')) == \"api\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'docs/cloud-teardown.md' if (project_tier | default('end_to_end')) == \"api\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'docs/operations-runbook.md' if (project_tier | default('end_to_end')) == \"api\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'scripts/export_serving_release_to_cloud.py' if (project_tier | default('end_to_end')) == \"api\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'src/' ~ package_name ~ '/inference/releases/cloud_exporter.py' if (project_tier | default('end_to_end')) == \"api\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'tests/unit/inference/releases/test_cloud_exporter.py' if (project_tier | default('end_to_end')) == \"api\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'prefect.yaml' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'src/' ~ package_name ~ '/pipeline' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'tests/unit/pipeline' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'src/' ~ package_name ~ '/tracking' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'tests/unit/tracking' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'src/' ~ package_name ~ '/training' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'tests/unit/training' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'src/' ~ package_name ~ '/orchestration' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'tests/unit/orchestration' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'src/' ~ package_name ~ '/notifications' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'tests/unit/notifications' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'src/' ~ package_name ~ '/inference/releases/builder.py' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'tests/unit/inference/releases/test_builder.py' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'src/' ~ package_name ~ '/inference/releases/publisher.py' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'tests/unit/inference/releases/test_publisher.py' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'src/' ~ package_name ~ '/inference/releases/input_provider.py' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'tests/unit/inference/releases/test_input_provider.py' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'tests/integration/test_mlflow_release_lifecycle.py' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'tests/integration/test_prefect_server_compatibility.py' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'src/' ~ package_name ~ '/monitoring/model_observability.py' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'tests/unit/monitoring/test_model_observability.py' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'monitoring/grafana/dashboards/model-observability.json' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"

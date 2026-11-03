@@ -2,6 +2,18 @@
 
 {{ project_description }}
 
+## Project scope
+
+Selected tier: **{{ project_tier }}**.
+
+- `api`: model serving, authentication, health checks, operational metrics, Docker and tests.
+- `deployment`: API plus GCP infrastructure, deployment/rollback workflows and monitoring stack.
+- `end_to_end`: deployment plus training interfaces, Prefect and MLflow services, registry and promotion.
+
+MLflow remains an inference dependency in every tier. A running tracking server is not
+required for loading a self-contained local model. Registry and runs URIs require
+access to their configured MLflow backend.
+
 ## Project type
 
 This project implements a production-oriented **{{ task_type | replace("-", " ") }}**
@@ -22,7 +34,9 @@ The generated project provides a reusable MLOps foundation with:
 - API-key authentication
 - request IDs and safe error responses
 - Prometheus metrics
+{% if project_tier == "end_to_end" %}
 - structured model-lifecycle logging and optional webhook notifications
+{% endif %}
 - privacy-safe prediction event logging
 - Docker and Docker Compose support
 - automated unit and integration tests
@@ -132,7 +146,7 @@ make api-config
 Build and start the API:
 
 ```bash
-make api-up
+make api-rebuild
 ```
 
 Show the container status:
@@ -213,6 +227,7 @@ The active-release pointer determines which release is loaded by the API.
 Replacing the pointer enables controlled promotion and rollback without
 mixing artifacts from different model versions.
 
+{% if project_tier == "end_to_end" %}
 ## Model lifecycle notifications
 
 Training lifecycle events are written to the application logs and can
@@ -253,7 +268,7 @@ With `fail_on_error: false`, a temporary notification outage is logged but
 does not invalidate an otherwise successful training or promotion lifecycle.
 Set it to `true` only when notification delivery is a mandatory operational
 requirement.
-
+{% endif %}
 ## Project structure
 
 ```text
@@ -286,6 +301,7 @@ Project-specific data ingestion, feature engineering, training, evaluation
 and business monitoring must be implemented for the selected use case.
 
 
+{% if project_tier != "api" %}
 ## Cloud deployment
 
 Google Cloud infrastructure and keyless GitHub Actions deployment are
@@ -301,8 +317,7 @@ documented in
 Operational triage, incident recovery and rollback procedures are
 documented in
 [docs/operations-runbook.md](docs/operations-runbook.md).
-
-
+{% endif %}
 ## Template updates
 
 Instructions for applying newer template releases to an existing project are

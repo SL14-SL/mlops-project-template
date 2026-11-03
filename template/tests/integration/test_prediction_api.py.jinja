@@ -126,7 +126,9 @@ def test_predict_returns_success(
         return_value=service
     )
     observe = MagicMock()
+{% if project_tier == "end_to_end" %}
     observe_outputs = MagicMock()
+{% endif %}
 
     monkeypatch.setattr(
         prediction,
@@ -138,11 +140,13 @@ def test_predict_returns_success(
         "observe_prediction",
         observe,
     )
+{% if project_tier == "end_to_end" %}
     monkeypatch.setattr(
         prediction,
         "observe_model_outputs",
         observe_outputs,
     )
+{% endif %}
 
     with client:
         response = client.post(
@@ -159,9 +163,11 @@ def test_predict_returns_success(
     service_constructor.assert_called_once_with(
         model_manager
     )
+{% if project_tier == "end_to_end" %}
     observe_outputs.assert_called_once_with(
         expected_response
     )
+{% endif %}
 
     observe.assert_called_once()
 
@@ -246,7 +252,9 @@ def test_predict_maps_domain_validation_error(
         "Prediction input is missing required columns."
     )
     observe = MagicMock()
+{% if project_tier == "end_to_end" %}
     observe_outputs = MagicMock()
+{% endif %}
 
     monkeypatch.setattr(
         prediction,
@@ -258,11 +266,13 @@ def test_predict_maps_domain_validation_error(
         "observe_prediction",
         observe,
     )
+{% if project_tier == "end_to_end" %}
     monkeypatch.setattr(
         prediction,
         "observe_model_outputs",
         observe_outputs,
     )
+{% endif %}
 
     with client:
         response = client.post(
@@ -278,7 +288,9 @@ def test_predict_maps_domain_validation_error(
         "Prediction input is missing required columns."
     )
 
+{% if project_tier == "end_to_end" %}
     observe_outputs.assert_not_called()
+{% endif %}
     observe.assert_called_once()
 
     metric_call = observe.call_args.kwargs

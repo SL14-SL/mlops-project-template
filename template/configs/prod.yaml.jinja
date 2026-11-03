@@ -2,7 +2,9 @@ project:
   name: "{{ project_name }}"
   slug: "{{ project_slug }}"
   task_type: "{{ task_type }}"
+  tier: "{{ project_tier }}"
 
+{% if project_tier == "end_to_end" %}
 notifications:
   enabled: true
   log_events: true
@@ -11,7 +13,7 @@ notifications:
     enabled: false
     url: "${LIFECYCLE_WEBHOOK_URL:-}"
     timeout_seconds: 5.0
-    
+{% endif %}
 paths:
   data_root: "gs://${GCS_BUCKET_NAME:-replace-me}/data"
   raw: "gs://${GCS_BUCKET_NAME:-replace-me}/data/raw"
@@ -20,9 +22,10 @@ paths:
   artifacts: "gs://${GCS_BUCKET_NAME:-replace-me}/artifacts"
   models: "gs://${GCS_BUCKET_NAME:-replace-me}/models"
 
+{% if project_tier == "end_to_end" %}
 services:
   prefect_api_url: "${PREFECT_API_URL}"
-
+{% endif %}
 serving:
   alias: "champion"
 
@@ -33,6 +36,7 @@ tracking:
   mlflow_tracking_uri: "${MLFLOW_TRACKING_URI}"
   experiment_name: "{{ project_slug }}-prod"
   model_name: "{{ project_slug }}-model-prod"
+{% if project_tier == "end_to_end" %}
   promotion:
 {% if task_type == "classification" %}
     metric_name: accuracy
@@ -44,3 +48,4 @@ tracking:
     minimum_improvement: 0.0
 {% endif %}
     allow_initial_champion: true
+{% endif %}
