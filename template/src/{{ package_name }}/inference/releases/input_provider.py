@@ -55,7 +55,7 @@ class ServingReleaseInput:
                 "Serving release sources must be a mapping."
             )
 
-        if not self.sources:
+        if not self.sources and self.task_type is TaskType.CLASSIFICATION:
             raise ValueError(
                 "Serving release input requires "
                 "at least one artifact source."

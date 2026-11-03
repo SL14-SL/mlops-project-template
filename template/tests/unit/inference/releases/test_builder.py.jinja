@@ -99,21 +99,21 @@ def build_artifacts() -> dict[
     ArtifactReference,
 ]:
     return {
-        "store_metadata": artifact(
-            "store_metadata.parquet"
+        "series_metadata": artifact(
+            "series_metadata.parquet"
         ),
-        "store_state": artifact(
-            "store_state.json"
+        "history": artifact(
+            "history.json"
         ),
-        "known_calendar": artifact(
-            "known_calendar.parquet"
+        "future_covariates": artifact(
+            "future_covariates.parquet"
         ),
     }
 
 
 def build_metadata() -> dict:
     return {
-        "target_transformation": "log1p",
+        "target_name": "temperature",
     }
 
 

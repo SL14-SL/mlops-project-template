@@ -40,19 +40,19 @@ SOURCE_ARTIFACTS = {
 {% elif task_type == "forecasting" -%}
 TASK_TYPE = TaskType.FORECASTING
 SOURCE_METADATA = {
-    "target_transformation": "log1p",
+    "target_name": "temperature",
 }
 SOURCE_ARTIFACTS = {
-    "store_metadata": (
-        "store_metadata.parquet",
-        b"store metadata",
+    "series_metadata": (
+        "series_metadata.parquet",
+        b"series metadata",
     ),
-    "store_state": (
-        "store_state.json",
+    "history": (
+        "history.json",
         b'{"1":{"history":[100.0]}}',
     ),
-    "known_calendar": (
-        "known_calendar.parquet",
+    "future_covariates": (
+        "future_covariates.parquet",
         b"known calendar",
     ),
 }

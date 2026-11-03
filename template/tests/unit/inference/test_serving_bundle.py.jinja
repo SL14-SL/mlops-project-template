@@ -18,7 +18,6 @@ from {{ package_name }}.inference.serving_bundle import (
 from dataclasses import replace
 from unittest.mock import MagicMock
 
-import pandas as pd
 import pytest
 
 from {{ package_name }}.inference.releases.contracts import (
@@ -88,44 +87,17 @@ def build_valid_manifest() -> ServingReleaseManifest:
         created_at_utc="2026-09-14T08:00:00+00:00",
         task_type=TaskType.FORECASTING,
         model=ModelReference(
-            name="forecasting-model",
-            version="3",
-            run_id="run-3",
-            uri="models:/forecasting-model@champion",
-            model_type="xgboost",
+            name="forecasting-model", version="3", run_id="run-3",
+            uri="models:/forecasting-model@champion", model_type="xgboost",
         ),
-        artifacts={
-            "store_metadata": artifact("store.parquet"),
-            "store_state": artifact("latest_state.json"),
-            "known_calendar": artifact("known_calendar.parquet"),
-        },
-        metadata={
-            "target_transformation": "log1p",
-        },
+        artifacts={},
     )
 
 
 def build_valid_bundle() -> ServingBundle:
     return ServingBundle(
-        release_id="release-1",
-        manifest=build_valid_manifest(),
-        model=MagicMock(),
-        serving_alias="champion",
-        target_transformation="log1p",
-        store_metadata=pd.DataFrame(
-            {"entity_id": [1, 2]}
-        ),
-        store_state={
-            "1": {
-                "last_observation": 100.0,
-            }
-        },
-        known_calendar=pd.DataFrame(
-            {
-                "entity_id": [1],
-                "date": ["2026-09-15"],
-            }
-        ),
+        release_id="release-1", manifest=build_valid_manifest(),
+        model=MagicMock(), serving_alias="champion",
     )
 {% endif %}
 
@@ -228,54 +200,21 @@ def test_bundle_rejects_duplicate_feature_columns() -> None:
     ):
         validate_serving_bundle(bundle)
 {% elif task_type == "forecasting" %}
-def test_bundle_requires_matching_target_transformation() -> None:
-    bundle = replace(
-        build_valid_bundle(),
-        target_transformation="identity",
-    )
+def test_bundle_allows_self_contained_model() -> None:
+    bundle = build_valid_bundle()
+    validate_serving_bundle(bundle)
+    assert bundle.artifact_uris == {}
 
-    with pytest.raises(
-        ValueError,
-        match="does not match manifest",
-    ):
+
+def test_bundle_requires_artifact_names_to_match() -> None:
+    bundle = replace(build_valid_bundle(), artifact_uris={"history": "/tmp/history.json"})
+    with pytest.raises(ValueError, match="artifact names do not match"):
         validate_serving_bundle(bundle)
 
 
-def test_bundle_requires_store_metadata() -> None:
-    bundle = replace(
-        build_valid_bundle(),
-        store_metadata=pd.DataFrame(),
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="has no store metadata",
-    ):
-        validate_serving_bundle(bundle)
-
-
-def test_bundle_requires_forecasting_state() -> None:
-    bundle = replace(
-        build_valid_bundle(),
-        store_state={},
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="invalid forecasting state",
-    ):
-        validate_serving_bundle(bundle)
-
-
-def test_bundle_requires_known_calendar() -> None:
-    bundle = replace(
-        build_valid_bundle(),
-        known_calendar=pd.DataFrame(),
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="has no known calendar",
-    ):
+def test_bundle_validates_optional_artifact_uri() -> None:
+    manifest = replace(build_valid_manifest(), artifacts={"history": artifact("history.json")})
+    bundle = replace(build_valid_bundle(), manifest=manifest, artifact_uris={"history": ""})
+    with pytest.raises(ValueError, match="invalid artifact URI"):
         validate_serving_bundle(bundle)
 {% endif %}

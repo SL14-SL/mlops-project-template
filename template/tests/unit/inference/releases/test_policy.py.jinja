@@ -122,14 +122,8 @@ def build_valid_manifest() -> ServingReleaseManifest:
             uri="models:/forecasting-model/1",
             model_type="xgboost",
         ),
-        artifacts={
-            "store_metadata": artifact("store.parquet"),
-            "store_state": artifact("latest_state.json"),
-            "known_calendar": artifact("known_calendar.parquet"),
-        },
-        metadata={
-            "target_transformation": "log1p",
-        },
+        artifacts={},
+        metadata={},
     )
 
 
@@ -137,43 +131,23 @@ def test_validate_task_manifest() -> None:
     validate_task_manifest(build_valid_manifest())
 
 
-@pytest.mark.parametrize(
-    "missing_artifact",
-    [
-        "store_metadata",
-        "store_state",
-        "known_calendar",
-    ],
-)
-def test_manifest_requires_forecasting_artifacts(
-    missing_artifact: str,
-) -> None:
-    manifest = build_valid_manifest()
-    remaining_artifacts = dict(manifest.artifacts)
-    del remaining_artifacts[missing_artifact]
-
-    invalid_manifest = replace(
-        manifest,
-        artifacts=remaining_artifacts,
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="missing required artifacts",
-    ):
-        validate_task_manifest(invalid_manifest)
-
-
-def test_manifest_requires_target_transformation() -> None:
+def test_manifest_allows_optional_artifacts_without_transformation() -> None:
     manifest = replace(
-        build_valid_manifest(),
-        metadata={},
+        build_valid_manifest(), artifacts={"calibration": artifact("calibration.json")},
     )
+    validate_task_manifest(manifest)
 
-    with pytest.raises(
-        ValueError,
-        match="requires a target_transformation",
-    ):
+
+def test_manifest_requires_only_explicitly_declared_artifacts() -> None:
+    manifest = replace(build_valid_manifest(), metadata={"required_artifacts": ["calibration"]})
+    with pytest.raises(ValueError, match="missing required artifacts"):
+        validate_task_manifest(manifest)
+
+
+@pytest.mark.parametrize("required", [None, "history", [1], [""], ["x", "x"]])
+def test_manifest_rejects_invalid_required_artifact_declaration(required) -> None:
+    manifest = replace(build_valid_manifest(), metadata={"required_artifacts": required})
+    with pytest.raises(ValueError, match="list of unique names"):
         validate_task_manifest(manifest)
 
 
@@ -181,6 +155,7 @@ def test_manifest_rejects_classification_task() -> None:
     manifest = replace(
         build_valid_manifest(),
         task_type=TaskType.CLASSIFICATION,
+        artifacts={"feature_schema": artifact("schema.json")},
     )
 
     with pytest.raises(

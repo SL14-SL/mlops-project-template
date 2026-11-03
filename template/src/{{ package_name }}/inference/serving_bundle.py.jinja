@@ -8,10 +8,8 @@ from .releases.contracts import (
 )
 from .releases.policy import validate_task_manifest
 {% elif task_type == "forecasting" -%}
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
-
-import pandas as pd
 
 from .releases.contracts import (
     ServingReleaseManifest,
@@ -33,10 +31,7 @@ class ServingBundle:
     decision_threshold: float
     feature_schema: dict[str, Any]
 {% elif task_type == "forecasting" %}
-    target_transformation: str
-    store_metadata: pd.DataFrame
-    store_state: dict[str, Any]
-    known_calendar: pd.DataFrame
+    artifact_uris: dict[str, str] = field(default_factory=dict)
 {% endif %}
 
     @property
@@ -173,41 +168,15 @@ def validate_serving_bundle(bundle: ServingBundle) -> None:
             "Serving bundle requires a forecasting manifest."
         )
 
-    manifest_transformation = (
-        bundle.manifest.metadata or {}
-    ).get("target_transformation")
+    if not isinstance(bundle.artifact_uris, dict):
+        raise ValueError("Serving bundle artifact URIs must be a mapping.")
 
-    if (
-        not bundle.target_transformation
-        or bundle.target_transformation
-        != manifest_transformation
-    ):
-        raise ValueError(
-            "Serving bundle target transformation does not "
-            "match manifest."
-        )
+    if set(bundle.artifact_uris) != set(bundle.manifest.artifacts):
+        raise ValueError("Serving bundle artifact names do not match manifest.")
 
-    if (
-        not isinstance(bundle.store_metadata, pd.DataFrame)
-        or bundle.store_metadata.empty
+    if not all(
+        isinstance(uri, str) and uri.strip()
+        for uri in bundle.artifact_uris.values()
     ):
-        raise ValueError(
-            "Serving bundle has no store metadata."
-        )
-
-    if (
-        not isinstance(bundle.store_state, dict)
-        or not bundle.store_state
-    ):
-        raise ValueError(
-            "Serving bundle has invalid forecasting state."
-        )
-
-    if (
-        not isinstance(bundle.known_calendar, pd.DataFrame)
-        or bundle.known_calendar.empty
-    ):
-        raise ValueError(
-            "Serving bundle has no known calendar."
-        )
+        raise ValueError("Serving bundle contains an invalid artifact URI.")
 {% endif %}

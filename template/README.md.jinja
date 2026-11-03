@@ -323,3 +323,13 @@ documented in
 Instructions for applying newer template releases to an existing project are
 documented in
 [docs/template-updates.md](docs/template-updates.md).
+
+{%- if task_type == "forecasting" %}
+
+## Forecasting contract
+
+Forecasting is independent of sales, stores and calendar frequency. Self-contained
+models require no additional release artifacts. Optional project files are exposed
+as checksum-validated artifact URIs. See [the forecasting contract](docs/forecasting-contract.md)
+for request layout, model adapter responsibilities and migration from v0.5.0.
+{% endif %}

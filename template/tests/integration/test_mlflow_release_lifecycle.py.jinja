@@ -105,58 +105,58 @@ def build_release_sources(
 {% elif task_type == "forecasting" %}
 TASK_TYPE = TaskType.FORECASTING
 RELEASE_METADATA = {
-    "target_transformation": "identity",
+    "target_name": "temperature",
 }
 
 
 def build_release_sources(
     root: Path,
 ) -> dict[str, ServingArtifactSource]:
-    store_metadata = (
-        root / "store_metadata.parquet"
+    series_metadata = (
+        root / "series_metadata.parquet"
     )
-    store_state = root / "store_state.json"
-    known_calendar = (
-        root / "known_calendar.parquet"
+    history = root / "history.json"
+    future_covariates = (
+        root / "future_covariates.parquet"
     )
 
-    store_metadata.write_bytes(
-        b"store metadata fixture"
+    series_metadata.write_bytes(
+        b"series metadata fixture"
     )
-    store_state.write_text(
-        '{"stores": {"1": {"lag_1": 100.0}}}',
+    history.write_text(
+        '{"series": {"1": {"lag_1": 100.0}}}',
         encoding="utf-8",
     )
-    known_calendar.write_bytes(
+    future_covariates.write_bytes(
         b"calendar fixture"
     )
 
     return {
-        "store_metadata": (
+        "series_metadata": (
             ServingArtifactSource(
                 source_uri=str(
-                    store_metadata
+                    series_metadata
                 ),
                 relative_path=(
-                    "store_metadata.parquet"
+                    "series_metadata.parquet"
                 ),
             )
         ),
-        "store_state": (
+        "history": (
             ServingArtifactSource(
-                source_uri=str(store_state),
+                source_uri=str(history),
                 relative_path=(
-                    "store_state.json"
+                    "history.json"
                 ),
             )
         ),
-        "known_calendar": (
+        "future_covariates": (
             ServingArtifactSource(
                 source_uri=str(
-                    known_calendar
+                    future_covariates
                 ),
                 relative_path=(
-                    "known_calendar.parquet"
+                    "future_covariates.parquet"
                 ),
             )
         ),

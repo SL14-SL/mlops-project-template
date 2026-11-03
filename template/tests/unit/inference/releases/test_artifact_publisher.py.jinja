@@ -117,20 +117,12 @@ def test_publishes_and_checksums_artifacts(
     )
 
 
-def test_rejects_empty_sources(
-    tmp_path: Path,
-) -> None:
-    with pytest.raises(
-        ValueError,
-        match="at least one artifact",
-    ):
-        publish_serving_artifacts(
-            models_path=str(
-                tmp_path / "models"
-            ),
-            release_id="release-1",
-            sources={},
-        )
+def test_accepts_empty_optional_artifact_sources(tmp_path: Path) -> None:
+    result = publish_serving_artifacts(
+        models_path=str(tmp_path / "models"), release_id="release-1", sources={},
+    )
+    assert result.references == {}
+    assert result.release_root.endswith("serving_releases/release-1")
 
 
 def test_rejects_duplicate_destinations(

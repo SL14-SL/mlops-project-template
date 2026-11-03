@@ -23,29 +23,16 @@ from .serving_bundle import (
 from collections.abc import Callable
 from typing import Any
 
-import pandas as pd
-
-from .releases.contracts import (
-    ArtifactReference,
-    ServingReleaseManifest,
-)
+from .releases.contracts import ServingReleaseManifest
 from .releases.policy import validate_task_manifest
-from .releases.repository import (
-    load_active_release_manifest,
-    load_release_manifest,
-)
-from .releases.storage import (
-    load_json,
-    resolve_artifact_uri,
-)
-from .serving_bundle import (
-    ServingBundle,
-    validate_serving_bundle,
-)
+from .releases.repository import load_active_release_manifest, load_release_manifest
+from .releases.storage import resolve_artifact_uri
+from .serving_bundle import ServingBundle, validate_serving_bundle
 {% endif %}
 ModelLoader = Callable[[str], Any]
 
 
+{% if task_type == "classification" -%}
 def _required_artifact(
     manifest: ServingReleaseManifest,
     name: str,
@@ -60,6 +47,8 @@ def _required_artifact(
 
     return reference
 
+
+{% endif %}
 
 def build_serving_bundle(
     *,
@@ -94,40 +83,16 @@ def build_serving_bundle(
         feature_schema=feature_schema,
     )
 {% elif task_type == "forecasting" %}
-    store_metadata_uri = resolve_artifact_uri(
-        release_root=release_root,
-        reference=_required_artifact(
-            manifest,
-            "store_metadata",
-        ),
-    )
-    store_state_uri = resolve_artifact_uri(
-        release_root=release_root,
-        reference=_required_artifact(
-            manifest,
-            "store_state",
-        ),
-    )
-    known_calendar_uri = resolve_artifact_uri(
-        release_root=release_root,
-        reference=_required_artifact(
-            manifest,
-            "known_calendar",
-        ),
-    )
-    target_transformation = (
-        manifest.metadata or {}
-    )["target_transformation"]
-
+    artifact_uris = {
+        name: resolve_artifact_uri(release_root=release_root, reference=reference)
+        for name, reference in manifest.artifacts.items()
+    }
     bundle = ServingBundle(
         release_id=manifest.release_id,
         manifest=manifest,
         model=model,
         serving_alias=serving_alias,
-        target_transformation=str(target_transformation),
-        store_metadata=pd.read_parquet(store_metadata_uri),
-        store_state=load_json(store_state_uri),
-        known_calendar=pd.read_parquet(known_calendar_uri),
+        artifact_uris=artifact_uris,
     )
 {% endif %}
 

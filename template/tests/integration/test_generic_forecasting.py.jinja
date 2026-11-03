@@ -1,0 +1,147 @@
+{% if task_type == "forecasting" -%}
+from dataclasses import replace
+from pathlib import Path
+
+import pandas as pd
+import pytest
+from fastapi.testclient import TestClient
+from mlflow.models import ModelSignature
+from mlflow.pyfunc import PythonModel, load_model, save_model
+from mlflow.types.schema import ParamSchema, ParamSpec
+
+from {{ package_name }}.api.app import create_app
+from {{ package_name }}.api.schema import PredictionRequest
+from {{ package_name }}.inference.bundle_loader import (
+    build_serving_bundle,
+    load_serving_bundle,
+)
+from {{ package_name }}.inference.model_manager import ModelManager
+from {{ package_name }}.inference.prediction_service import predict_with_bundle
+from {{ package_name }}.inference.releases.contracts import (
+    ModelReference,
+    ServingReleaseManifest,
+    TaskType,
+)
+from {{ package_name }}.inference.releases.manifest import (
+    write_serving_manifest,
+)
+from {{ package_name }}.inference.releases.storage import (
+    build_artifact_reference,
+    build_release_paths,
+)
+
+
+class TemperatureModel:
+    """Deterministic sensor trend model with row-major multi-step output."""
+
+    def predict(self, frame: pd.DataFrame, params: dict) -> list[float]:
+        return [
+            float(row["last_temperature"]) + float(row["trend_per_step"]) * step
+            for row in frame.to_dict("records")
+            for step in range(1, params["horizon"] + 1)
+        ]
+
+
+def temperature_manifest() -> ServingReleaseManifest:
+    return ServingReleaseManifest(
+        schema_version=1,
+        release_id="temperature-release",
+        created_at_utc="2026-11-03T08:00:00+00:00",
+        task_type=TaskType.FORECASTING,
+        model=ModelReference(
+            name="temperature-model", version="1", run_id="sensor-run",
+            uri="models:/temperature-model/1", model_type="temperature-trend",
+        ),
+        artifacts={},
+    )
+
+
+@pytest.mark.parametrize(
+    ("inputs", "horizon", "expected"),
+    [
+        ([{"last_temperature": -4, "trend_per_step": -1}], 2, [-5, -6]),
+        ([
+            {"sensor_id": "outside", "last_temperature": -4, "trend_per_step": 1},
+            {"sensor_id": "inside", "last_temperature": 20, "trend_per_step": -2},
+        ], 2, [-3, -2, 18, 16]),
+        ([{"last_temperature": 0, "trend_per_step": 0}], 400, [0] * 400),
+    ],
+)
+def test_sensor_forecast_through_release_bundle_and_api(
+    tmp_path: Path, inputs: list[dict], horizon: int, expected: list[float],
+) -> None:
+    manifest = temperature_manifest()
+    paths = build_release_paths(models_path=str(tmp_path), release_id=manifest.release_id)
+    write_serving_manifest(paths["manifest"], manifest)
+    bundle = load_serving_bundle(
+        models_path=str(tmp_path), release_id=manifest.release_id,
+        serving_alias="champion", model_loader=lambda _: TemperatureModel(),
+    )
+    assert bundle.artifact_uris == {}
+    manager = ModelManager(lambda: bundle)
+    manager.load_initial()
+    app = create_app(model_manager=manager, load_model_on_startup=False, api_key="sensor-key")
+    with TestClient(app) as client:
+        assert client.get("/readyz").status_code == 200
+        response = client.post(
+            "/predict", headers={"X-API-Key": "sensor-key"},
+            json={"inputs": inputs, "horizon": horizon},
+        )
+        assert response.status_code == 200, response.text
+        predictions = response.json()["predictions"]
+        assert [item["prediction"] for item in predictions] == expected
+        assert [(item["row_index"], item["horizon_step"]) for item in predictions] == [
+            (row, step) for row in range(len(inputs)) for step in range(1, horizon + 1)
+        ]
+        assert client.post(
+            "/predict", json={"inputs": inputs, "horizon": horizon},
+        ).status_code == 401
+
+
+def test_optional_project_artifact_is_checksum_validated(tmp_path: Path) -> None:
+    artifact = tmp_path / "calibration.json"
+    artifact.write_text('{"offset": 0.5}')
+    reference = build_artifact_reference(
+        relative_path="calibration.json", artifact_uri=str(artifact),
+    )
+    manifest = replace(
+        temperature_manifest(), artifacts={"sensor_calibration": reference},
+        metadata={"required_artifacts": ["sensor_calibration"]},
+    )
+    bundle = build_serving_bundle(
+        manifest=manifest, release_root=str(tmp_path), serving_alias="champion",
+        model_loader=lambda _: TemperatureModel(),
+    )
+    assert bundle.artifact_uris == {"sensor_calibration": str(artifact)}
+    artifact.write_text('{"offset": 99}')
+    with pytest.raises(ValueError, match="checksum mismatch"):
+        build_serving_bundle(
+            manifest=manifest, release_root=str(tmp_path), serving_alias="champion",
+            model_loader=lambda _: TemperatureModel(),
+        )
+
+
+class TemperaturePythonModel(PythonModel):
+    def predict(self, context, model_input, params=None):
+        return TemperatureModel().predict(model_input, params or {"horizon": 1})
+
+
+def test_saved_mlflow_forecast_needs_no_domain_artifacts(tmp_path: Path) -> None:
+    model_path = tmp_path / "temperature-model"
+    save_model(
+        path=str(model_path), python_model=TemperaturePythonModel(),
+        signature=ModelSignature(params=ParamSchema([ParamSpec("horizon", "long", 1)])),
+    )
+    manifest = temperature_manifest()
+    manifest = replace(manifest, model=replace(manifest.model, uri=str(model_path)))
+    bundle = build_serving_bundle(
+        manifest=manifest, release_root=str(tmp_path), serving_alias="champion",
+        model_loader=load_model,
+    )
+    response = predict_with_bundle(
+        PredictionRequest(inputs=[{"last_temperature": -5, "trend_per_step": 0.5}], horizon=3),
+        bundle,
+    )
+    assert [item.prediction for item in response.predictions] == [-4.5, -4, -3.5]
+    assert bundle.artifact_uris == {}
+{% endif %}
