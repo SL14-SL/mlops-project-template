@@ -238,3 +238,7 @@ def test_release_input_requires_valid_sources() -> None:
                 "schema": object(),
             },
         )
+
+def test_forecasting_release_input_allows_self_contained_model() -> None:
+    result = ServingReleaseInput(task_type=TaskType.FORECASTING, model_type="pyfunc", sources={})
+    assert result.sources == {}

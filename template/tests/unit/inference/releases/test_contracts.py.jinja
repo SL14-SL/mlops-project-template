@@ -66,13 +66,13 @@ def test_validate_serving_manifest_accepts_forecasting_task() -> None:
         build_valid_manifest(),
         task_type=TaskType.FORECASTING,
         artifacts={
-            "store_state": ArtifactReference(
-                path="store_state.json",
+            "history": ArtifactReference(
+                path="history.json",
                 sha256=VALID_CHECKSUM,
             ),
         },
         metadata={
-            "target_transformation": "log1p",
+            "target_name": "temperature",
         },
     )
 
@@ -137,11 +137,16 @@ def test_validate_serving_manifest_rejects_empty_artifacts() -> None:
         artifacts={},
     )
 
-    with pytest.raises(
-        ValueError,
-        match="contains no artifacts",
-    ):
+    with pytest.raises(ValueError, match="contains no artifacts"):
         validate_serving_manifest(manifest)
+
+
+def test_forecasting_manifest_allows_no_extra_artifacts() -> None:
+    manifest = replace(
+        build_valid_manifest(), task_type=TaskType.FORECASTING, artifacts={}, metadata={},
+    )
+    validate_serving_manifest(manifest)
+
 
 
 def test_validate_artifact_reference_rejects_absolute_path() -> None:

@@ -99,58 +99,58 @@ def build_sources(
 {% elif task_type == "forecasting" %}
 TASK_TYPE = TaskType.FORECASTING
 METADATA = {
-    "target_transformation": "log1p",
+    "target_name": "temperature",
 }
 
 
 def build_sources(
     root: Path,
 ) -> dict[str, ServingArtifactSource]:
-    store_metadata = (
-        root / "store_metadata.parquet"
+    series_metadata = (
+        root / "series_metadata.parquet"
     )
-    store_state = root / "store_state.json"
-    known_calendar = (
-        root / "known_calendar.parquet"
+    history = root / "history.json"
+    future_covariates = (
+        root / "future_covariates.parquet"
     )
 
-    store_metadata.write_bytes(
-        b"store metadata"
+    series_metadata.write_bytes(
+        b"series metadata"
     )
-    store_state.write_text(
-        '{"stores": {}}',
+    history.write_text(
+        '{"series": {}}',
         encoding="utf-8",
     )
-    known_calendar.write_bytes(
+    future_covariates.write_bytes(
         b"known calendar"
     )
 
     return {
-        "store_metadata": (
+        "series_metadata": (
             ServingArtifactSource(
                 source_uri=str(
-                    store_metadata
+                    series_metadata
                 ),
                 relative_path=(
-                    "store_metadata.parquet"
+                    "series_metadata.parquet"
                 ),
             )
         ),
-        "store_state": (
+        "history": (
             ServingArtifactSource(
-                source_uri=str(store_state),
+                source_uri=str(history),
                 relative_path=(
-                    "store_state.json"
+                    "history.json"
                 ),
             )
         ),
-        "known_calendar": (
+        "future_covariates": (
             ServingArtifactSource(
                 source_uri=str(
-                    known_calendar
+                    future_covariates
                 ),
                 relative_path=(
-                    "known_calendar.parquet"
+                    "future_covariates.parquet"
                 ),
             )
         ),
@@ -301,3 +301,16 @@ def test_missing_source_creates_no_release(
         / "serving_releases"
         / "release-missing"
     ).exists()
+
+{% if task_type == "forecasting" %}
+def test_publishes_self_contained_forecasting_release(tmp_path: Path) -> None:
+    result = publish_serving_release(
+        models_path=str(tmp_path / "models"),
+        registration=build_registration(), promotion=build_promotion(),
+        task_type=TaskType.FORECASTING, model_type="pyfunc", sources={}, metadata={},
+        release_id="standalone-forecast",
+    )
+    manifest, _ = load_active_release_manifest(models_path=str(tmp_path / "models"))
+    assert manifest.artifacts == {}
+    assert result.active_pointer.release_id == "standalone-forecast"
+{% endif %}

@@ -47,45 +47,21 @@ def validate_task_manifest(
 {% elif task_type == "forecasting" -%}
 from .contracts import ServingReleaseManifest, TaskType, validate_serving_manifest
 
-_REQUIRED_ARTIFACTS = {
-    "store_metadata",
-    "store_state",
-    "known_calendar",
-}
 
-
-def validate_task_manifest(
-    manifest: ServingReleaseManifest,
-) -> None:
-    """Validate forecasting-specific release requirements."""
+def validate_task_manifest(manifest: ServingReleaseManifest) -> None:
+    """Validate a model-owned, domain-independent forecasting release."""
     validate_serving_manifest(manifest)
-
     if manifest.task_type is not TaskType.FORECASTING:
-        raise ValueError(
-            "Expected a forecasting serving manifest."
-        )
+        raise ValueError("Expected a forecasting serving manifest.")
 
-    missing_artifacts = (
-        _REQUIRED_ARTIFACTS - manifest.artifacts.keys()
-    )
-
-    if missing_artifacts:
-        raise ValueError(
-            "Serving manifest is missing required artifacts: "
-            f"{sorted(missing_artifacts)}."
-        )
-
-    metadata = manifest.metadata or {}
-    target_transformation = metadata.get(
-        "target_transformation"
-    )
-
+    required = (manifest.metadata or {}).get("required_artifacts", [])
     if (
-        not isinstance(target_transformation, str)
-        or not target_transformation.strip()
+        not isinstance(required, list)
+        or not all(isinstance(name, str) and name.strip() for name in required)
+        or len(required) != len(set(required))
     ):
-        raise ValueError(
-            "Forecasting serving manifest requires a "
-            "target_transformation."
-        )
+        raise ValueError("Forecasting required_artifacts must be a list of unique names.")
+    missing = set(required) - manifest.artifacts.keys()
+    if missing:
+        raise ValueError(f"Serving manifest is missing required artifacts: {sorted(missing)}.")
 {% endif %}

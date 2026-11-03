@@ -169,7 +169,7 @@ def validate_serving_manifest(
             "Serving manifest has invalid artifacts."
         )
 
-    if not manifest.artifacts:
+    if not manifest.artifacts and manifest.task_type is TaskType.CLASSIFICATION:
         raise ValueError(
             "Serving manifest contains no artifacts."
         )

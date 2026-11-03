@@ -103,3 +103,4 @@ _exclude:
   - "{{ 'src/' ~ package_name ~ '/monitoring/model_observability.py' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
   - "{{ 'tests/unit/monitoring/test_model_observability.py' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
   - "{{ 'monitoring/grafana/dashboards/model-observability.json' if (project_tier | default('end_to_end')) != \"end_to_end\" else '__tier_exclusion_disabled__' }}"
+  - "{{ 'docs/forecasting-contract.md' if task_type != 'forecasting' else '__forecast_doc_included__' }}"

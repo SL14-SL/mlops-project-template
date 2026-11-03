@@ -61,12 +61,6 @@ def _validate_sources(
             "Serving artifact sources must be a mapping."
         )
 
-    if not sources:
-        raise ValueError(
-            "Serving release requires at least "
-            "one artifact source."
-        )
-
     relative_paths: list[str] = []
 
     for name, source in sources.items():
