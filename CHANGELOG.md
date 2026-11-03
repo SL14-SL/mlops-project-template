@@ -12,6 +12,27 @@ The template follows Semantic Versioning.
 
 ### Fixed
 
+## [0.6.0] - 2026-11-03
+
+### Changed
+
+- forecasting bundles no longer require store metadata, store state,
+  calendar artifacts or target-transformation metadata
+- self-contained forecasting models can serve without extra release artifacts
+- optional project artifacts are exposed through checksum-validated artifact URIs
+- forecasting horizons count model steps without a fixed 366-step limit
+
+### Added
+
+- generic forecasting contract and migration guide
+- sensor forecasting tests covering negative values, multiple series,
+  optional artifacts and saved MLflow models
+
+### Migration
+
+- custom forecasting adapters must replace accesses to the former
+  store-specific bundle fields with project-specific artifact handling
+
 ## [0.5.0] - 2026-11-03
 
 ### Added
