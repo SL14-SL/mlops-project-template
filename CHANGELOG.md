@@ -8,6 +8,9 @@ The template follows Semantic Versioning.
 
 ### Added
 
+- isolated container smoke tests with saved MLflow models, active serving releases,
+  known predictions and API-key verification for all six project variants
+
 ### Changed
 
 ### Fixed

@@ -333,3 +333,24 @@ models require no additional release artifacts. Optional project files are expos
 as checksum-validated artifact URIs. See [the forecasting contract](docs/forecasting-contract.md)
 for request layout, model adapter responsibilities and migration from v0.5.0.
 {% endif %}
+
+## Container model smoke test
+
+After `uv sync`, run `make smoke-test` with Docker and Docker Compose available.
+The test saves a deterministic MLflow model, prepares a serving release and
+starts a separate Compose project on port 18080. It checks readiness, known
+predictions, row ordering, API-key enforcement and empty-batch rejection.
+Forecasting checks include negative sensor values and multiple horizons.
+
+The model and config are mounted read-only from `.container-smoke/`, which is
+excluded from Git and Docker builds. The synthetic test key is only for this
+isolated stack. The test does not require MLflow or Prefect servers and cleans
+up its own Compose stack after success or failure.
+
+To use an existing image or another port:
+
+```bash
+uv run python scripts/container_smoke_test.py --skip-build --port 18081
+```
+
+This checks model serving and container wiring, not model accuracy or cloud deployment.

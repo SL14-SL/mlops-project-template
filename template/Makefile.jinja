@@ -172,3 +172,8 @@ terraform-validate: terraform-init terraform-fmt ## Validate Terraform modules
 	terraform -chdir=infrastructure/terraform-bootstrap validate
 	terraform -chdir=infrastructure/terraform validate
 {% endif %}
+
+
+.PHONY: smoke-test
+smoke-test: ## Build API and verify a saved model in an isolated Docker stack
+	$(UV) run python scripts/container_smoke_test.py
