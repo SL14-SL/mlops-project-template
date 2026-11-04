@@ -8,12 +8,18 @@ The template follows Semantic Versioning.
 
 ### Added
 
-- isolated container smoke tests with saved MLflow models, active serving releases,
-  known predictions and API-key verification for all six project variants
-
 ### Changed
 
 ### Fixed
+
+## [0.6.1] - 2026-11-04
+
+### Added
+
+- Isolated Docker smoke tests across all six template variants. The tests load
+  saved MLflow models through active serving releases and verify readiness,
+  expected predictions, API-key authentication and input validation.
+- `make smoke-test` for running the same checks locally in generated projects.
 
 ## [0.6.0] - 2026-11-03
 
