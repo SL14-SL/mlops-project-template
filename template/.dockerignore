@@ -23,3 +23,6 @@ results
 !.env.example
 *.log
 complete_project_code*.md
+
+# Disposable container smoke-test fixtures
+.container-smoke/

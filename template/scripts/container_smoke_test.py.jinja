@@ -1,0 +1,287 @@
+"""Exercise a saved MLflow model through the API in an isolated Compose stack."""
+
+import argparse
+import json
+import math
+import os
+import shutil
+import subprocess
+import sys
+import time
+from datetime import UTC, datetime
+from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+import pandas as pd
+import yaml
+
+from {{ package_name }}.inference.releases.contracts import (
+    ModelReference,
+    ServingReleaseManifest,
+    TaskType,
+)
+from {{ package_name }}.inference.releases.manifest import (
+    write_serving_manifest,
+)
+from {{ package_name }}.inference.releases.pointer import (
+    ReleaseOperation,
+)
+from {{ package_name }}.inference.releases.repository import (
+    activate_release,
+)
+from {{ package_name }}.inference.releases.storage import (
+    build_release_paths,
+)
+
+TASK_TYPE = TaskType.{{ task_type | upper }}
+RELEASE_ID = "container-smoke-{{ task_type }}"
+API_KEY = "container-smoke-test-key-only"
+CONTAINER_ROOT = "/app/smoke"
+
+
+def _save_model(destination: Path) -> None:
+    """Save a deterministic test model without a tracking server or registry."""
+    os.environ["MLFLOW_DISABLE_TELEMETRY"] = "true"
+    from mlflow.models import ModelSignature
+    from mlflow.pyfunc import PythonModel, save_model
+    from mlflow.types.schema import ColSpec, {% if task_type == "forecasting" %}ParamSchema, ParamSpec, {% endif %}Schema
+
+    # A function-local class is serialized by value, so the image does not
+    # need this test script on its Python path when loading the saved model.
+    class SmokeModel(PythonModel):
+        def predict(self, context, model_input: pd.DataFrame, params=None) -> list[float]:
+{% if task_type == "classification" %}
+            return [1.0 / (1.0 + math.exp(-float(value))) for value in model_input["value"]]
+{% else %}
+            horizon = (params or {}).get("horizon", 1)
+            return [
+                float(row["last_temperature"]) + float(row["trend_per_step"]) * step
+                for row in model_input.to_dict("records")
+                for step in range(1, horizon + 1)
+            ]
+{% endif %}
+
+{% if task_type == "classification" %}
+    example = pd.DataFrame({"value": [-2.0, 2.0]})
+    signature = ModelSignature(
+        inputs=Schema([ColSpec("double", "value")]),
+        outputs=Schema([ColSpec("double")]),
+    )
+{% else %}
+    example = pd.DataFrame({"last_temperature": [-5.0], "trend_per_step": [0.5]})
+    signature = ModelSignature(
+        inputs=Schema([
+            ColSpec("double", "last_temperature"),
+            ColSpec("double", "trend_per_step"),
+        ]),
+        outputs=Schema([ColSpec("double")]),
+        params=ParamSchema([ParamSpec("horizon", "long", 1)]),
+    )
+{% endif %}
+    save_model(
+        path=str(destination), python_model=SmokeModel(), signature=signature,
+        input_example=example, pip_requirements=[],
+    )
+
+
+def prepare_release(project_root: Path, *, model_uri: str | None = None) -> Path:
+    """Create disposable model files, release, config and Compose override."""
+    fixture = project_root / ".container-smoke"
+    if fixture.is_symlink():
+        raise ValueError("Smoke fixture directory must not be a symlink.")
+    if fixture.exists():
+        shutil.rmtree(fixture)
+    fixture.mkdir()
+    _save_model(fixture / "model")
+
+    models_path = fixture / "models"
+    paths = build_release_paths(models_path=str(models_path), release_id=RELEASE_ID)
+    release_root = Path(paths["release_root"])
+    release_root.mkdir(parents=True)
+    artifacts = {}
+    metadata = {}
+{% if task_type == "classification" %}
+    from {{ package_name }}.inference.releases.storage import (
+        build_artifact_reference,
+    )
+
+    schema_path = release_root / "feature_schema.json"
+    schema_path.write_text(json.dumps({"columns": ["value"], "dtypes": {"value": "float64"}}))
+    artifacts["feature_schema"] = build_artifact_reference(
+        relative_path="feature_schema.json", artifact_uri=str(schema_path),
+    )
+    metadata["decision_threshold"] = 0.5
+{% endif %}
+    manifest = ServingReleaseManifest(
+        schema_version=1,
+        release_id=RELEASE_ID,
+        created_at_utc=datetime.now(UTC).isoformat(),
+        task_type=TASK_TYPE,
+        model=ModelReference(
+            name="container-smoke-model", version="1", run_id="container-smoke-run",
+            uri=model_uri or f"{CONTAINER_ROOT}/model", model_type="mlflow-pyfunc",
+        ),
+        artifacts=artifacts,
+        metadata=metadata,
+    )
+    write_serving_manifest(paths["manifest"], manifest)
+    activate_release(
+        models_path=str(models_path), release_id=RELEASE_ID,
+        operation=ReleaseOperation.BOOTSTRAP, expected_task_type=TASK_TYPE,
+    )
+
+    config = yaml.safe_load((project_root / "configs/dev.yaml").read_text())
+    config["paths"]["models"] = f"{CONTAINER_ROOT}/models"
+    config["tracking"]["mlflow_tracking_uri"] = "file:///tmp/container-smoke-mlruns"
+    config["api"]["api_key"] = API_KEY
+    (fixture / "dev.yaml").write_text(yaml.safe_dump(config, sort_keys=False))
+    override = {
+        "services": {
+            "api": {
+                "environment": {
+                    "APP_ENV": "dev", "API_KEY": API_KEY,
+                    "MLFLOW_DISABLE_TELEMETRY": "true",
+                },
+                "volumes": [
+                    f"{fixture}:/app/smoke:ro",
+                    f"{fixture / 'dev.yaml'}:/app/configs/dev.yaml:ro",
+                ],
+            },
+        },
+    }
+    (fixture / "compose.yaml").write_text(yaml.safe_dump(override, sort_keys=False))
+    # The image runs as UID 10001; all these files are synthetic fixtures.
+    fixture.chmod(0o755)
+    for path in fixture.rglob("*"):
+        path.chmod(0o755 if path.is_dir() else 0o644)
+    return fixture
+
+
+def _http(base_url: str, path: str, *, payload=None, api_key=None) -> tuple[int, dict]:
+    headers = {"Content-Type": "application/json"}
+    if api_key is not None:
+        headers["X-API-Key"] = api_key
+    request = Request(
+        base_url + path, headers=headers,
+        data=json.dumps(payload).encode() if payload is not None else None,
+    )
+    try:
+        response = urlopen(request, timeout=5)
+    except HTTPError as error:
+        response = error
+    with response:
+        return response.status, json.loads(response.read())
+
+
+def _require(condition: bool, message: str) -> None:
+    if not condition:
+        raise AssertionError(message)
+
+
+def verify_api(base_url: str, *, timeout: float = 120.0) -> None:
+    """Check readiness, exact predictions, ordering and authentication."""
+    deadline = time.monotonic() + timeout
+    last_result = "API not reachable"
+    while time.monotonic() < deadline:
+        try:
+            status, body = _http(base_url, "/readyz")
+            last_result = f"HTTP {status}: {body}"
+            if status == 200:
+                break
+        except (URLError, TimeoutError, OSError) as error:
+            last_result = str(error)
+        time.sleep(0.5)
+    else:
+        raise RuntimeError(f"API never became ready: {last_result}")
+    _require(body.get("active_release_id") == RELEASE_ID, "Unexpected active release")
+    _require(_http(base_url, "/livez")[0] == 200, "Liveness failed")
+{% if task_type == "classification" %}
+    payload = {"inputs": [{"value": -2.0}, {"value": 2.0}]}
+{% else %}
+    payload = {
+        "inputs": [
+            {"last_temperature": -5.0, "trend_per_step": 0.5},
+            {"last_temperature": 20.0, "trend_per_step": -2.0},
+        ],
+        "horizon": 3,
+    }
+{% endif %}
+    _require(_http(base_url, "/predict", payload=payload)[0] == 401, "Missing key accepted")
+    _require(
+        _http(base_url, "/predict", payload=payload, api_key="wrong-key")[0] == 403,
+        "Invalid key accepted",
+    )
+    status, body = _http(base_url, "/predict", payload=payload, api_key=API_KEY)
+    _require(status == 200, f"Prediction failed: HTTP {status}: {body}")
+    _require(body.get("release_id") == RELEASE_ID, "Prediction used unexpected release")
+    predictions = body.get("predictions", [])
+{% if task_type == "classification" %}
+    _require(len(predictions) == 2, "Incorrect prediction count")
+    for index, expected in enumerate([0.119202922, 0.880797078]):
+        item = predictions[index]
+        _require(item["row_index"] == index, "Incorrect row ordering")
+        _require(item["prediction"] == index, "Incorrect classification label")
+        _require(
+            math.isclose(item["probability"], expected, rel_tol=1e-6, abs_tol=1e-8),
+            "Incorrect classification probability",
+        )
+{% else %}
+    expected = [-4.5, -4.0, -3.5, 18.0, 16.0, 14.0]
+    _require(len(predictions) == len(expected), "Incorrect forecast count")
+    for index, value in enumerate(expected):
+        item = predictions[index]
+        _require(item["row_index"] == index // 3, "Incorrect forecast row")
+        _require(item["horizon_step"] == index % 3 + 1, "Incorrect horizon ordering")
+        _require(math.isclose(item["prediction"], value, abs_tol=1e-8), "Incorrect forecast")
+{% endif %}
+    _require(
+        _http(base_url, "/predict", payload={"inputs": []}, api_key=API_KEY)[0] == 422,
+        "Empty batch accepted",
+    )
+    print("PASS: loaded release, readiness, predictions, authentication and validation")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--port", type=int, default=18080)
+    parser.add_argument("--skip-build", action="store_true")
+    parser.add_argument("--prepare-only", action="store_true")
+    args = parser.parse_args()
+    if not 1 <= args.port <= 65535:
+        parser.error("Port must be between 1 and 65535.")
+    if not args.prepare_only and shutil.which("docker") is None:
+        parser.error("Docker with the Compose plugin is required.")
+    project_root = Path(__file__).resolve().parents[1]
+    fixture = prepare_release(project_root)
+    if args.prepare_only:
+        print(f"Prepared smoke release in {fixture}")
+        return
+
+    compose = [
+        "docker", "compose", "--project-name", "{{ project_slug }}-smoke",
+        "--file", str(project_root / "compose.yaml"),
+        "--file", str(fixture / "compose.yaml"),
+    ]
+    environment = {**os.environ, "API_PORT": str(args.port)}
+    try:
+        if not args.skip_build:
+            subprocess.run(compose + ["build", "api"], env=environment, check=True)
+        subprocess.run(
+            compose + ["up", "--detach", "--no-build", "--force-recreate", "api"],
+            env=environment, check=True,
+        )
+        verify_api(f"http://127.0.0.1:{args.port}")
+    except BaseException:
+        subprocess.run(compose + ["logs", "--no-color", "api"], env=environment, check=False)
+        raise
+    finally:
+        cleanup = subprocess.run(
+            compose + ["down", "--volumes", "--remove-orphans"], env=environment, check=False,
+        )
+        if cleanup.returncode and sys.exc_info()[0] is None:
+            raise RuntimeError("Could not clean up the smoke-test Compose stack.")
+
+
+if __name__ == "__main__":
+    main()

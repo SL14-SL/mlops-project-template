@@ -61,3 +61,6 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 terraform.tfvars
+
+# Disposable container smoke-test fixtures
+.container-smoke/
