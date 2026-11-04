@@ -12,6 +12,12 @@ The template follows Semantic Versioning.
 
 ### Fixed
 
+## [0.6.2] - 2026-11-04
+
+### Fixed
+
+- Align the project version in `pyproject.toml` and `uv.lock` with the release tag.
+
 ## [0.6.1] - 2026-11-04
 
 ### Added
