@@ -11,6 +11,7 @@ full = tier == "end_to_end"
 cloud = tier != "api"
 for relative, expected in {
     "infrastructure": cloud,
+    "infrastructure/terraform-aws": cloud,
     "monitoring": cloud,
     ".github/workflows/deploy.yml": cloud,
     ".github/workflows/rollback.yml": cloud,
