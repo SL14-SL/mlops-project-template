@@ -1,0 +1,47 @@
+from pathlib import Path
+
+import pytest
+
+from {{ package_name }}.configs.paths import (
+    is_object_storage_path,
+    join_uri,
+    path_name,
+    path_suffix,
+)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "gs://example-bucket/data/train.parquet",
+        "s3://example-bucket/data/train.parquet",
+    ],
+)
+def test_recognizes_object_storage_paths(path: str) -> None:
+    assert is_object_storage_path(path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/tmp/data/train.parquet",
+        "data/train.parquet",
+        Path("data/train.parquet"),
+        "https://example.com/train.parquet",
+        "",
+    ],
+)
+def test_rejects_other_paths(path: str | Path) -> None:
+    assert not is_object_storage_path(path)
+
+
+def test_path_helpers_preserve_s3_uri() -> None:
+    path = join_uri(
+        "s3://example-bucket/",
+        "/data/",
+        "TRAIN.PARQUET",
+    )
+
+    assert path == "s3://example-bucket/data/TRAIN.PARQUET"
+    assert path_name(path) == "TRAIN.PARQUET"
+    assert path_suffix(path) == ".parquet"
