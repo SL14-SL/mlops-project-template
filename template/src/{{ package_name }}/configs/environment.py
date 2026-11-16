@@ -21,10 +21,7 @@ def detect_environment() -> str:
 def resolve_env_placeholders(value: Any) -> Any:
     """Recursively resolve environment placeholders in configuration values."""
     if isinstance(value, dict):
-        return {
-            key: resolve_env_placeholders(item)
-            for key, item in value.items()
-        }
+        return {key: resolve_env_placeholders(item) for key, item in value.items()}
 
     if isinstance(value, list):
         return [resolve_env_placeholders(item) for item in value]
@@ -80,6 +77,59 @@ def override_gcs_bucket_paths(
             paths[key] = f"{new_base_path}/{path_parts[1]}"
         else:
             paths[key] = new_base_path
+
+    return config
+
+
+def override_cloud_storage_paths(
+    config: dict[str, Any],
+) -> dict[str, Any]:
+    """Apply the selected cloud provider to configured storage paths."""
+    provider = os.getenv("CLOUD_PROVIDER", "gcp").strip().lower()
+
+    if provider == "local":
+        return config
+
+    if provider == "gcp":
+        return override_gcs_bucket_paths(config)
+
+    if provider != "aws":
+        raise ValueError("CLOUD_PROVIDER must be one of: local, gcp, aws.")
+
+    configured_bucket = os.getenv("S3_BUCKET_NAME", "").strip()
+    bucket_name = configured_bucket.removeprefix("s3://").strip("/")
+
+    if (
+        not bucket_name
+        or "/" in bucket_name
+        or any(character.isspace() for character in bucket_name)
+    ):
+        raise ValueError("S3_BUCKET_NAME must contain a bucket name without a path.")
+
+    paths = config.get("paths")
+
+    if not isinstance(paths, dict):
+        return config
+
+    aws_suffixes = {
+        "data_root": "data",
+        "raw": "data/raw",
+        "interim": "data/interim",
+        "processed": "data/processed",
+        "artifacts": "artifacts",
+        "models": "models",
+    }
+
+    for key, path in paths.items():
+        if not isinstance(path, str):
+            continue
+
+        if path.startswith(("gs://", "s3://")):
+            _, _, bucket_and_path = path.partition("://")
+            _, separator, suffix = bucket_and_path.partition("/")
+            paths[key] = f"s3://{bucket_name}/{suffix}" if separator else f"s3://{bucket_name}"
+        elif key in aws_suffixes:
+            paths[key] = f"s3://{bucket_name}/{aws_suffixes[key]}"
 
     return config
 
