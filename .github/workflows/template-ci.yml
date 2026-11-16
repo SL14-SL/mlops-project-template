@@ -73,6 +73,10 @@ jobs:
         working-directory: generated/${{ matrix.project_slug }}
         run: make check
 
+      - name: Test generated project with AWS dependencies
+        working-directory: generated/${{ matrix.project_slug }}
+        run: uv run --extra aws pytest -q
+        
       - name: Validate Compose configuration
         working-directory: generated/${{ matrix.project_slug }}
         run: docker compose --profile "*" config --quiet

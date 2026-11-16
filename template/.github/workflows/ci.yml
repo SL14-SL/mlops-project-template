@@ -10,9 +10,18 @@ permissions:
 
 jobs:
   quality:
-    name: Lint and test
+    name: Lint and test (${{ matrix.name }})
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: default
+            uv_args: ""
+          - name: aws
+            uv_args: "--extra aws"
 
     steps:
       - name: Check out repository
@@ -29,10 +38,10 @@ jobs:
         run: cp .env.example .env
 
       - name: Synchronize dependencies
-        run: uv sync --locked
+        run: uv sync --locked ${{ matrix.uv_args }}
 
       - name: Run Ruff
-        run: uv run ruff check .
+        run: uv run --locked ${{ matrix.uv_args }} ruff check .
 
       - name: Run tests
-        run: uv run pytest
+        run: uv run --locked ${{ matrix.uv_args }} pytest
