@@ -1,0 +1,58 @@
+import pytest
+
+from {{ package_name }}.inference.releases.contracts import (
+    ArtifactReference,
+    validate_artifact_reference,
+)
+from {{ package_name }}.inference.releases.storage import build_release_paths
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "s3://example-bucket/model.json",
+        "gs://example-bucket/model.json",
+        "https://example.com/model.json",
+        "/absolute/model.json",
+        "../model.json",
+        "nested/../../model.json",
+        r"nested\model.json",
+    ],
+)
+def test_rejects_non_relative_artifact_paths(path: str) -> None:
+    reference = ArtifactReference(path=path, sha256="a" * 64)
+
+    with pytest.raises(ValueError, match="must be relative"):
+        validate_artifact_reference(reference, name="model")
+
+    with pytest.raises(ValueError, match="must be relative"):
+        build_release_paths(
+            models_path="s3://example-bucket/models",
+            release_id="release-1",
+            artifact_filenames={"model": path},
+        )
+
+
+def test_builds_s3_release_paths_with_relative_artifacts() -> None:
+    reference = ArtifactReference(
+        path="nested/model.json",
+        sha256="a" * 64,
+    )
+    validate_artifact_reference(reference, name="model")
+
+    paths = build_release_paths(
+        models_path="s3://example-bucket/models",
+        release_id="release-1",
+        artifact_filenames={"model": reference.path},
+    )
+
+    assert paths["release_root"] == (
+        "s3://example-bucket/models/serving_releases/release-1"
+    )
+    assert paths["model"] == (
+        "s3://example-bucket/models/serving_releases/"
+        "release-1/nested/model.json"
+    )
+    assert paths["active_pointer"] == (
+        "s3://example-bucket/models/active_serving_release.json"
+    )
