@@ -21,3 +21,11 @@ output "api_repository_url" {
 output "storage_kms_key_arn" {
   value = aws_kms_key.storage.arn
 }
+
+output "vpc_id" {
+  value = aws_vpc.main.id
+}
+
+output "api_subnet_ids" {
+  value = aws_subnet.public[*].id
+}
