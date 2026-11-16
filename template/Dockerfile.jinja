@@ -11,21 +11,39 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 WORKDIR /app
 
+ARG INSTALL_AWS=false
+
 COPY pyproject.toml uv.lock ./
 
-RUN uv sync \
-    --locked \
-    --no-dev \
-    --no-install-project
+RUN if [ "$INSTALL_AWS" = "true" ]; then \
+        uv sync \
+            --locked \
+            --no-dev \
+            --extra aws \
+            --no-install-project; \
+    else \
+        uv sync \
+            --locked \
+            --no-dev \
+            --no-install-project; \
+    fi
 
 COPY README.md ./
 COPY configs ./configs
 COPY src ./src
 
-RUN uv sync \
-    --locked \
-    --no-dev \
-    --no-editable
+RUN if [ "$INSTALL_AWS" = "true" ]; then \
+        uv sync \
+            --locked \
+            --no-dev \
+            --extra aws \
+            --no-editable; \
+    else \
+        uv sync \
+            --locked \
+            --no-dev \
+            --no-editable; \
+    fi
 
 
 FROM python:{{python_version}}-slim AS runtime
@@ -33,7 +51,7 @@ FROM python:{{python_version}}-slim AS runtime
 RUN apt-get update \
     && apt-get upgrade --yes \
     && rm -rf /var/lib/apt/lists/*
-    
+
 ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
@@ -45,7 +63,7 @@ RUN useradd \
 
 RUN mkdir -p /app/runtime/mlflow \
     && chown -R appuser:appuser /app/runtime
-    
+
 WORKDIR /app
 
 COPY --from=builder \
