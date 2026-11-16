@@ -61,6 +61,21 @@ jobs:
           "${{ matrix.project_tier }}"
           "$(echo '${{ matrix.project_slug }}' | tr '-' '_')"
 
+      - name: Set up Terraform
+        if: matrix.project_tier != 'api'
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - name: Validate generated AWS infrastructure
+        if: matrix.project_tier != 'api'
+        working-directory: generated/${{ matrix.project_slug }}
+        run: |
+          terraform -chdir=infrastructure/terraform-aws fmt -check -recursive
+          terraform -chdir=infrastructure/terraform-aws init \
+            -backend=false -input=false -lockfile=readonly
+          terraform -chdir=infrastructure/terraform-aws validate
+
       - name: Create local environment file
         working-directory: generated/${{ matrix.project_slug }}
         run: cp .env.example .env
