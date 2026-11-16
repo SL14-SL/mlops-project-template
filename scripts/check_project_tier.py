@@ -17,6 +17,7 @@ for relative, expected in {
     ".github/workflows/rollback.yml": cloud,
     ".github/workflows/terraform.yml": cloud,
     "scripts/export_serving_release_to_cloud.py": cloud,
+    "docs/aws-deployment.md": cloud,
     "prefect.yaml": full,
     f"src/{package}/pipeline": full,
     f"src/{package}/training": full,
