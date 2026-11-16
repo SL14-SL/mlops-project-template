@@ -127,6 +127,41 @@ jobs:
           format: table
           exit-code: "1"
 
+      - name: Build AWS API image
+        working-directory: generated/${{ matrix.project_slug }}
+        env:
+          INSTALL_AWS: "true"
+          IMAGE_TAG: aws-check
+        run: docker compose build api
+
+      - name: Verify AWS dependencies in API image
+        run: >-
+          docker run --rm
+          --entrypoint python
+          "${{ matrix.project_slug }}-api:aws-check"
+          -c 'import boto3, s3fs; print("AWS dependencies available")'
+
+      - name: Verify predictions in AWS API image
+        working-directory: generated/${{ matrix.project_slug }}
+        env:
+          INSTALL_AWS: "true"
+          IMAGE_TAG: aws-check
+        run: >-
+          uv run --extra aws python
+          scripts/container_smoke_test.py --skip-build
+
+      - name: Scan AWS API image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: "${{ matrix.project_slug }}-api:aws-check"
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          format: table
+          exit-code: "1"
+
       - name: Stop Compose stack
         if: always()
         working-directory: generated/${{ matrix.project_slug }}
