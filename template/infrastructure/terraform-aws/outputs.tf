@@ -45,3 +45,23 @@ output "api_key_secret_arn" {
 output "api_log_group" {
   value = aws_cloudwatch_log_group.api.name
 }
+
+output "api_cluster_arn" {
+  value = aws_ecs_cluster.main.arn
+}
+
+output "api_task_definition_arn" {
+  value = var.api_serving_enabled ? aws_ecs_task_definition.api[0].arn : null
+}
+
+output "api_service_name" {
+  value = var.api_serving_enabled ? aws_ecs_service.api[0].name : null
+}
+
+output "api_endpoint" {
+  value = var.api_serving_enabled ? aws_apigatewayv2_api.api[0].api_endpoint : null
+}
+
+output "api_gateway_log_group" {
+  value = aws_cloudwatch_log_group.api_gateway.name
+}

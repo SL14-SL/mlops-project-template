@@ -39,3 +39,23 @@ variable "environment" {
     error_message = "environment must be dev, staging or prod."
   }
 }
+
+variable "api_serving_enabled" {
+  description = "Deploy the API service, load balancer and gateway."
+  type        = bool
+  default     = false
+}
+
+variable "api_image_digest" {
+  description = "Digest of the AWS-enabled API image uploaded to this project's ECR repository."
+  type        = string
+  default     = ""
+
+  validation {
+    condition = (
+      var.api_image_digest == "" ||
+      can(regex("^sha256:[a-f0-9]{64}$", var.api_image_digest))
+    )
+    error_message = "api_image_digest must be empty or a sha256 digest."
+  }
+}
