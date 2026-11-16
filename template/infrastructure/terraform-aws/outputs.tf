@@ -29,3 +29,19 @@ output "vpc_id" {
 output "api_subnet_ids" {
   value = aws_subnet.public[*].id
 }
+
+output "api_execution_role_arn" {
+  value = aws_iam_role.api_execution.arn
+}
+
+output "api_task_role_arn" {
+  value = aws_iam_role.api_task.arn
+}
+
+output "api_key_secret_arn" {
+  value = aws_secretsmanager_secret.api_key.arn
+}
+
+output "api_log_group" {
+  value = aws_cloudwatch_log_group.api.name
+}
