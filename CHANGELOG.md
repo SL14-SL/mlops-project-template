@@ -12,6 +12,44 @@ The template follows Semantic Versioning.
 
 ### Fixed
 
+## [1.0.0] - 2026-11-17
+
+### Added
+
+- Explicit stability and compatibility policy for documented public interfaces.
+- Compatibility tests verifying that project-owned trainers and evaluators
+  remain unchanged and functional after updates from v0.6.2.
+- Optional AWS dependencies, S3 storage configuration, and conditional
+  serving-release pointer updates.
+- AWS-enabled API container builds, prediction smoke tests, and image scans
+  across all six project variants.
+- Experimental AWS Terraform infrastructure for ECS/Fargate serving through
+  an API Gateway HTTPS endpoint in deployment and end-to-end tiers.
+- AWS deployment, operational limitations, and full teardown documentation.
+
+### Changed
+
+- Documented public contracts now follow the version 1.x compatibility policy.
+- Generated project CI tests both default and AWS-enabled dependencies.
+- Template CI validates generated AWS Terraform configuration.
+- Quickstart examples now reference v1.0.0.
+
+### Fixed
+
+- Reject absolute cloud URIs and backslashes in release-relative artifact paths.
+- Update OpenTelemetry dependencies in the template repository lockfile.
+
+### Migration
+
+- Existing 0.x projects should update on a dedicated branch, review generated
+  changes, regenerate their dependency lock, and run project-specific tests.
+- The compatibility guarantee starts with v1.0.0; pre-1.0 updates can require
+  manual migration and conflict resolution.
+- AWS Terraform remains experimental and is excluded from the stable
+  infrastructure compatibility guarantee. The generated AWS deployment has
+  not been verified end to end on AWS.
+- AWS training jobs and SageMaker execution are not included.
+
 ## [0.6.2] - 2026-11-04
 
 ### Fixed
