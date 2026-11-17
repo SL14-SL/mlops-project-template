@@ -16,6 +16,42 @@ from {{ package_name }}.data.contracts import DatasetCollection, DatasetSplits
 from {{ package_name }}.pipeline.service import TrainingPipeline
 from {{ package_name }}.tracking.mlflow import get_active_training_run_id
 from {{ package_name }}.training.contracts import EvaluationResult, TrainingResult
+from {{ package_name }}.inference.releases.artifact_publisher import (
+    ServingArtifactSource,
+)
+from {{ package_name }}.inference.releases.contracts import TaskType
+from {{ package_name }}.inference.releases.input_provider import ServingReleaseInput
+from {{ package_name }}.inference.releases.storage import sha256_uri
+
+
+class FixtureReleaseProvider:
+    def build_release_input(
+        self,
+        *,
+        training_result: TrainingResult,
+        evaluation_result: EvaluationResult,
+        config: Mapping[str, Any],
+    ) -> ServingReleaseInput:
+        del training_result, evaluation_result
+        artifact_directory = Path(config["paths"]["artifacts"])
+        artifact_directory.mkdir(parents=True, exist_ok=True)
+        schema = artifact_directory / "feature_schema.json"
+        schema.write_text(
+            '{"columns": ["feature"], "dtypes": {"feature": "float64"}}',
+            encoding="utf-8",
+        )
+
+        return ServingReleaseInput(
+            task_type=TaskType("{{ task_type }}"),
+            model_type="mlflow-pyfunc",
+            sources={
+                "feature_schema": ServingArtifactSource(
+                    source_uri=str(schema),
+                    relative_path="feature_schema.json",
+                ),
+            },
+            metadata={"decision_threshold": 0.5},
+        )
 
 
 class MeanModel(mlflow.pyfunc.PythonModel):
@@ -179,7 +215,7 @@ def test_training_job_exports_reloadable_candidate(
         model_directory=tmp_path / "model",
         output_directory=tmp_path / "output",
     )
-    release_provider = MagicMock()
+    release_provider = FixtureReleaseProvider()
     repository = MagicMock()
 
     def factory(config: dict[str, Any]) -> TrainingPipeline:
@@ -247,5 +283,23 @@ def test_training_job_exports_reloadable_candidate(
     assert source.read_bytes() == original_input
     assert shared_pointer.read_text(encoding="utf-8") == original_pointer
     assert not list(paths.work_directory.rglob("active_serving_release.json"))
-    release_provider.build_release_input.assert_not_called()
+    candidate = json.loads(
+        (paths.model_directory / "candidate.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert candidate["run_id"] == report["run_id"]
+    assert candidate["task_type"] == "{{ task_type }}"
+    assert candidate["promoted"] is False
+    assert candidate["metadata"]["decision_threshold"] == 0.5
+
+    for relative_path, checksum in candidate["model_files"].items():
+        assert sha256_uri(
+            str(paths.model_directory / relative_path)
+        ) == checksum
+
+    for reference in candidate["artifacts"].values():
+        artifact = paths.model_directory / reference["path"]
+        assert artifact.is_file()
+        assert sha256_uri(str(artifact)) == reference["sha256"]
     repository.save.assert_not_called()

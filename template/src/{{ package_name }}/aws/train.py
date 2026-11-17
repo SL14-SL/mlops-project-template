@@ -12,7 +12,9 @@ import mlflow
 import yaml
 from mlflow import MlflowClient
 
+from .candidate import export_candidate_serving_input
 from ..configs.environment import resolve_env_placeholders
+from ..inference.releases.input_provider import build_serving_release_input
 from ..pipeline.project_factory import build_project_training_pipeline
 from ..pipeline.runner import run_training_pipeline
 from ..pipeline.service import TrainingPipeline
@@ -140,6 +142,18 @@ def run_training_job(
             shutil.copytree(
                 downloaded,
                 paths.model_directory / "model",
+            )
+
+            release_input = build_serving_release_input(
+                provider=pipeline.release_input_provider,
+                training_result=result.training,
+                evaluation_result=result.evaluation,
+                config=config,
+            )
+            export_candidate_serving_input(
+                release_input=release_input,
+                paths=paths,
+                run_id=result.training.run_id,
             )
 
             report = {
