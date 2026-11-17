@@ -326,6 +326,15 @@ Operational triage, incident recovery and rollback procedures are
 documented in
 [docs/operations-runbook.md](docs/operations-runbook.md).
 {% endif %}
+{% if project_tier == "end_to_end" %}
+## AWS training
+
+Isolated training, Fargate transport, SageMaker configuration and cleanup
+are documented in [docs/aws-training.md](docs/aws-training.md).
+
+Cloud execution of the generated training infrastructure remains unverified.
+{% endif %}
+
 ## Template updates
 
 Instructions for applying newer template releases to an existing project are

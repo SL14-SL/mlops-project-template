@@ -116,3 +116,4 @@ _exclude:
   - "{{ 'infrastructure/terraform-aws/sagemaker_iam.tf' if (project_tier | default('end_to_end')) != 'end_to_end' else '__sagemaker_iam_included__' }}"
   - "{{ 'infrastructure/terraform-aws/sagemaker_outputs.tf' if (project_tier | default('end_to_end')) != 'end_to_end' else '__sagemaker_outputs_included__' }}"
   - "{{ 'scripts/training_container_smoke_test.py' if (project_tier | default('end_to_end')) != 'end_to_end' else '__training_container_smoke_included__' }}"
+  - "{{ 'docs/aws-training.md' if (project_tier | default('end_to_end')) != 'end_to_end' else '__aws_training_doc_included__' }}"

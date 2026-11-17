@@ -37,6 +37,7 @@ for relative, expected in {
     "infrastructure/terraform-aws/sagemaker_iam.tf": full,
     "infrastructure/terraform-aws/sagemaker_outputs.tf": full,
     "scripts/training_container_smoke_test.py": full,
+    "docs/aws-training.md": full,
 }.items():
     assert (root / relative).exists() == expected, relative
 
