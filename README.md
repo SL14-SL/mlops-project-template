@@ -13,7 +13,7 @@ Generate a new project directly from the latest reviewed template release:
 ```bash
 uvx copier copy \
   --trust \
-  --vcs-ref v1.0.0 \
+  --vcs-ref v1.1.0 \
   https://github.com/SL14-SL/mlops-project-template.git \
   my-mlops-project
 ```

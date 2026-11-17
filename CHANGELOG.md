@@ -7,6 +7,15 @@ The template follows Semantic Versioning.
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [1.1.0] - 2026-11-17
+
+### Added
+
 - Isolated training with local MLflow tracking and portable candidate export
   in the end-to-end tier.
 - Non-root training images, Fargate S3 transport, SageMaker request generation,
@@ -14,12 +23,26 @@ The template follows Semantic Versioning.
 - Container training smoke tests, image scans and AWS training documentation.
 - Verified Fargate training from a generated forecasting project on AWS,
   including S3/KMS access, artifact checksums and model reload.
+- Screenshots and verification evidence documenting the successful cloud test
+  and completed infrastructure cleanup.
 
 ### Changed
 
+- Quickstart examples now reference v1.1.0.
+
 ### Fixed
+
 - Preserve unset MLflow registry configuration and tracking environment
   variables after isolated training jobs.
+
+### Limitations
+
+- SageMaker cloud execution and non-root access to its mounted directories
+  remain unverified.
+- The generated API deployment remains unverified on AWS.
+- Training candidates are not automatically registered, promoted or activated.
+- AWS Terraform infrastructure remains experimental.
+
 
 ## [1.0.0] - 2026-11-17
 
