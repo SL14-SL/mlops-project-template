@@ -34,8 +34,12 @@ Automated checks cover:
 - SageMaker request generation.
 - Terraform initialization and validation.
 
-Cloud execution of the generated Fargate and SageMaker configurations
-has not been verified.
+Fargate training was verified on AWS using a generated forecasting project
+and a synthetic pipeline on November 17, 2026. Verification included S3/KMS
+access, candidate upload, checksum validation and model reload.
+
+Classification is covered by automated local and container tests but was
+not separately executed on AWS. SageMaker cloud execution remains unverified.
 
 The container mount test uses explicitly writable synthetic output
 directories. It does not prove that SageMaker's mounted directories
