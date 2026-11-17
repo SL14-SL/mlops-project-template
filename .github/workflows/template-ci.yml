@@ -278,3 +278,86 @@ jobs:
           --profile monitoring
           config
           --quiet
+
+  customized-template-update:
+    name: Update customized ${{ matrix.task_type }} project
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        task_type: [classification, forecasting]
+
+    steps:
+      - name: Check out template repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.12.13"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Synchronize template dependencies
+        run: uv sync --locked
+
+      - name: Generate baseline project
+        run: |
+          uv run copier copy --defaults \
+            --vcs-ref v0.6.2 \
+            --data project_name="Customized Update Check" \
+            --data project_slug=customized-update-check \
+            --data task_type="${{ matrix.task_type }}" \
+            --data project_tier=end_to_end \
+            . \
+            generated/customized-update-check
+
+      - name: Add project-owned adapters and tests
+        run: >-
+          uv run python scripts/add_update_compatibility_fixture.py
+          generated/customized-update-check
+          customized_update_check
+
+      - name: Verify adapters before update
+        working-directory: generated/customized-update-check
+        run: |
+          uv run ruff check src/customized_update_check/project_extension.py \
+            tests/unit/test_project_extension.py
+          uv run pytest -q tests/unit/test_project_extension.py
+
+      - name: Commit customized baseline
+        working-directory: generated/customized-update-check
+        run: |
+          git init
+          git config user.name "Template CI"
+          git config user.email "template-ci@example.invalid"
+          git add .
+          git commit -m "test: prepare customized v0.6.2 project"
+
+      - name: Update customized project
+        run: >-
+          uv run copier update
+          --defaults
+          --vcs-ref HEAD
+          generated/customized-update-check
+
+      - name: Verify project-owned files are preserved
+        working-directory: generated/customized-update-check
+        run: |
+          test -f src/customized_update_check/project_extension.py
+          test -f tests/unit/test_project_extension.py
+          git diff --exit-code HEAD -- \
+            src/customized_update_check/project_extension.py \
+            tests/unit/test_project_extension.py
+
+      - name: Verify adapters after update
+        working-directory: generated/customized-update-check
+        run: |
+          uv run --extra aws ruff check \
+            src/customized_update_check/project_extension.py \
+            tests/unit/test_project_extension.py
+          uv run --extra aws pytest -q tests/unit/test_project_extension.py
