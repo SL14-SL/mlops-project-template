@@ -110,10 +110,13 @@ ECS/Fargate serving through an API Gateway HTTPS endpoint.
 AWS-enabled containers are tested in CI. The generated AWS infrastructure
 is validated with Terraform but has not been verified end to end on AWS.
 The end-to-end tier additionally provides isolated training, Fargate S3
-transport, and SageMaker request generation. Generated cloud execution
-remains unverified.
+transport, and SageMaker request generation. Fargate training was verified on AWS with a generated forecasting project
+and synthetic data. SageMaker execution and the generated API deployment
+remain unverified.
 
 See the [generated AWS deployment guide](template/docs/aws-deployment.md.jinja).
+See the [Fargate training verification](docs/aws-training-verification.md)
+for test scope, screenshots and cleanup evidence.
 
 ## Stability and compatibility
 
