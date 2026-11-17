@@ -177,6 +177,52 @@ jobs:
           format: table
           exit-code: "1"
 
+      - name: Build training image
+        if: matrix.project_tier == 'end_to_end'
+        working-directory: generated/${{ matrix.project_slug }}
+        run: >-
+          docker build
+          -f Dockerfile.training
+          --tag "${{ matrix.project_slug }}-training:check"
+          .
+
+      - name: Verify training image entry points
+        if: matrix.project_tier == 'end_to_end'
+        run: |
+          docker run --rm \
+            "${{ matrix.project_slug }}-training:check"
+
+          docker run --rm \
+            --entrypoint python \
+            "${{ matrix.project_slug }}-training:check" \
+            -m "$(echo '${{ matrix.project_slug }}' | tr '-' '_').aws.fargate_train" \
+            --help
+
+      - name: Verify training image dependencies and user
+        if: matrix.project_tier == 'end_to_end'
+        run: |
+          docker run --rm \
+            --entrypoint python \
+            "${{ matrix.project_slug }}-training:check" \
+            -c 'import boto3, s3fs, mlflow; print("Training dependencies available")'
+
+          test "$(docker image inspect \
+            "${{ matrix.project_slug }}-training:check" \
+            --format '{{.Config.User}}')" = "appuser"
+
+      - name: Scan training image
+        if: matrix.project_tier == 'end_to_end'
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: "${{ matrix.project_slug }}-training:check"
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          format: table
+          exit-code: "1"
+
       - name: Stop Compose stack
         if: always()
         working-directory: generated/${{ matrix.project_slug }}
