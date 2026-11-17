@@ -127,8 +127,15 @@ def run_training_job(
                 )
             ).resolve()
 
-            if not downloaded.is_dir() or download_directory.resolve() not in downloaded.parents:
-                raise ValueError("Downloaded model must be inside the job download directory.")
+            if (
+                not downloaded.is_dir()
+                or paths.work_directory.resolve() not in downloaded.parents
+                or not (downloaded / "MLmodel").is_file()
+            ):
+                raise ValueError(
+                    "Export requires an MLflow model inside the isolated "
+                    f"job work directory; received: {downloaded}"
+                )
 
             shutil.copytree(
                 downloaded,
