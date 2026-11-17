@@ -24,6 +24,12 @@ dependencies = [
     "uvicorn==0.54.0",
 ]
 
+[project.optional-dependencies]
+aws = [
+    "boto3",
+    "s3fs",
+]
+
 [dependency-groups]
 dev = [
     "pip-audit==2.10.1",

@@ -11,11 +11,13 @@ full = tier == "end_to_end"
 cloud = tier != "api"
 for relative, expected in {
     "infrastructure": cloud,
+    "infrastructure/terraform-aws": cloud,
     "monitoring": cloud,
     ".github/workflows/deploy.yml": cloud,
     ".github/workflows/rollback.yml": cloud,
     ".github/workflows/terraform.yml": cloud,
     "scripts/export_serving_release_to_cloud.py": cloud,
+    "docs/aws-deployment.md": cloud,
     "prefect.yaml": full,
     f"src/{package}/pipeline": full,
     f"src/{package}/training": full,

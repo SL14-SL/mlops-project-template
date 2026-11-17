@@ -101,6 +101,18 @@ generating a project:
 - cloud resource identifiers
 - project documentation
 
+## Optional AWS support
+
+Generated projects support S3 storage and optional AWS-enabled API images.
+Deployment and end-to-end tiers also include Terraform configuration for
+ECS/Fargate serving through an API Gateway HTTPS endpoint.
+
+AWS-enabled containers are tested in CI. The generated AWS infrastructure
+is validated with Terraform but has not been verified end to end on AWS.
+AWS training jobs and SageMaker execution are not included.
+
+See the [generated AWS deployment guide](template/docs/aws-deployment.md.jinja).
+
 ## Requirements
 
 Using the template requires:
