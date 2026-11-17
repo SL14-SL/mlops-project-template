@@ -28,6 +28,7 @@ for relative, expected in {
     "monitoring/grafana/dashboards/model-observability.json": full,
     f"src/{package}/aws": full,
     "tests/unit/aws": full,
+    "tests/integration/test_aws_training_job.py": full,
 }.items():
     assert (root / relative).exists() == expected, relative
 

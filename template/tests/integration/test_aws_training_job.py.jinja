@@ -1,0 +1,251 @@
+import json
+from collections.abc import Mapping
+from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock
+
+import mlflow
+import pandas as pd
+import pytest
+import yaml
+from mlflow import MlflowClient
+
+from {{ package_name }}.aws.train import run_training_job
+from {{ package_name }}.aws.training_config import prepare_training_job_paths
+from {{ package_name }}.data.contracts import DatasetCollection, DatasetSplits
+from {{ package_name }}.pipeline.service import TrainingPipeline
+from {{ package_name }}.tracking.mlflow import get_active_training_run_id
+from {{ package_name }}.training.contracts import EvaluationResult, TrainingResult
+
+
+class MeanModel(mlflow.pyfunc.PythonModel):
+    def __init__(self, value: float) -> None:
+        self.value = value
+
+    def predict(
+        self,
+        context: Any,
+        model_input: pd.DataFrame,
+        params: dict[str, Any] | None = None,
+    ) -> list[float]:
+        del context, params
+        return [self.value] * len(model_input)
+
+
+class CsvIngestor:
+    def ingest(self, config: Mapping[str, Any]) -> DatasetCollection:
+        source = Path(config["paths"]["raw"]) / "records.csv"
+        return DatasetCollection(
+            datasets={"records": pd.read_csv(source)}
+        )
+
+
+class FixtureFeatureBuilder:
+    def build_features(
+        self,
+        datasets: DatasetCollection,
+        config: Mapping[str, Any],
+    ) -> pd.DataFrame:
+        del config
+        return datasets.require("records").copy()
+
+
+class FixtureSplitter:
+    def split(
+        self,
+        features: pd.DataFrame,
+        config: Mapping[str, Any],
+    ) -> DatasetSplits:
+        del config
+        return DatasetSplits(
+            train=features.iloc[:2].copy(),
+            validation=features.iloc[2:].copy(),
+        )
+
+
+class MeanTrainer:
+    def train(
+        self,
+        datasets: DatasetSplits,
+        config: Mapping[str, Any],
+    ) -> TrainingResult:
+        del config
+        value = float(datasets.train["target"].mean())
+
+        return TrainingResult(
+            model=MeanModel(value),
+            run_id=get_active_training_run_id(),
+            metrics={"training_mean": value},
+            parameters={"strategy": "mean"},
+        )
+
+
+class MaeEvaluator:
+    def evaluate(
+        self,
+        training_result: TrainingResult,
+        datasets: DatasetSplits,
+        config: Mapping[str, Any],
+    ) -> EvaluationResult:
+        predictions = training_result.model.predict(
+            None,
+            datasets.validation,
+        )
+        targets = datasets.validation["target"].tolist()
+        mae = sum(
+            abs(prediction - target)
+            for prediction, target in zip(predictions, targets, strict=True)
+        ) / len(targets)
+        approved = mae <= config["job_options"]["maximum_mae"]
+
+        return EvaluationResult(
+            metrics={"mae": mae},
+            approved=approved,
+            reasons=() if approved else ("MAE exceeds test limit.",),
+        )
+
+
+class PyfuncLogger:
+    def log_model(
+        self,
+        training_result: TrainingResult,
+        *,
+        artifact_path: str,
+        config: Mapping[str, Any],
+    ) -> str:
+        del config
+        logged = mlflow.pyfunc.log_model(
+            name=artifact_path,
+            python_model=training_result.model,
+            input_example=pd.DataFrame({"feature": [0.0, 1.0]}),
+            pip_requirements=[],
+        )
+        return logged.model_uri
+
+
+@pytest.mark.parametrize(
+    ("maximum_mae", "expected_approval"),
+    [(1.0, True), (0.5, False)],
+)
+def test_training_job_exports_reloadable_candidate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    maximum_mae: float,
+    expected_approval: bool,
+) -> None:
+    monkeypatch.setenv("MLFLOW_DISABLE_TELEMETRY", "true")
+    monkeypatch.setenv("CLOUD_PROVIDER", "aws")
+    monkeypatch.setenv("S3_BUCKET_NAME", "must-not-be-used")
+
+    input_directory = tmp_path / "input"
+    input_directory.mkdir()
+    source = input_directory / "records.csv"
+    source.write_text(
+        "feature,target\n"
+        "0,2\n"
+        "1,4\n"
+        "2,3\n"
+        "3,5\n",
+        encoding="utf-8",
+    )
+    original_input = source.read_bytes()
+
+    shared_models = tmp_path / "shared-models"
+    shared_models.mkdir()
+    shared_pointer = shared_models / "active_serving_release.json"
+    original_pointer = '{"release_id": "keep-existing-release"}\n'
+    shared_pointer.write_text(original_pointer, encoding="utf-8")
+
+    config_path = tmp_path / "training.yaml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "paths": {
+                    "raw": "s3://must-not-be-used/data",
+                    "models": str(shared_models),
+                },
+                "tracking": {
+                    "mlflow_tracking_uri": "https://must-not-be-used.example",
+                },
+                "job_options": {"maximum_mae": maximum_mae},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    paths = prepare_training_job_paths(
+        input_directory=input_directory,
+        work_directory=tmp_path / "work",
+        model_directory=tmp_path / "model",
+        output_directory=tmp_path / "output",
+    )
+    release_provider = MagicMock()
+    repository = MagicMock()
+
+    def factory(config: dict[str, Any]) -> TrainingPipeline:
+        return TrainingPipeline(
+            ingestor=CsvIngestor(),
+            feature_builder=FixtureFeatureBuilder(),
+            splitter=FixtureSplitter(),
+            trainer=MeanTrainer(),
+            evaluator=MaeEvaluator(),
+            model_logger=PyfuncLogger(),
+            release_input_provider=release_provider,
+            config=config,
+            run_repository=repository,
+        )
+
+    previous_tracking = mlflow.get_tracking_uri()
+    previous_registry = mlflow.get_registry_uri()
+
+    report = run_training_job(
+        config_path=config_path,
+        paths=paths,
+        pipeline_factory=factory,
+    )
+
+    assert mlflow.active_run() is None
+    assert mlflow.get_tracking_uri() == previous_tracking
+    assert mlflow.get_registry_uri() == previous_registry
+
+    saved_report = json.loads(
+        (paths.output_directory / "evaluation.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert saved_report == report
+    assert report["training_rows"] == 2
+    assert report["validation_rows"] == 2
+    assert report["training_metrics"]["training_mean"] == pytest.approx(3.0)
+    assert report["evaluation_metrics"]["mae"] == pytest.approx(1.0)
+    assert report["evaluation_approved"] is expected_approval
+    assert report["promoted"] is False
+
+    if expected_approval:
+        assert report["evaluation_reasons"] == []
+    else:
+        assert report["evaluation_reasons"] == ["MAE exceeds test limit."]
+
+    model_directory = paths.model_directory / "model"
+    assert (model_directory / "MLmodel").is_file()
+
+    reloaded = mlflow.pyfunc.load_model(str(model_directory))
+    predictions = reloaded.predict(
+        pd.DataFrame({"feature": [10.0, 20.0]})
+    )
+    assert list(predictions) == pytest.approx([3.0, 3.0])
+
+    tracking_uri = f"sqlite:///{paths.work_directory / 'mlflow.db'}"
+    client = MlflowClient(
+        tracking_uri=tracking_uri,
+        registry_uri=tracking_uri,
+    )
+    run = client.get_run(report["run_id"])
+    assert run.info.status == "FINISHED"
+    assert client.search_registered_models() == []
+
+    assert source.read_bytes() == original_input
+    assert shared_pointer.read_text(encoding="utf-8") == original_pointer
+    assert not list(paths.work_directory.rglob("active_serving_release.json"))
+    release_provider.build_release_input.assert_not_called()
+    repository.save.assert_not_called()
