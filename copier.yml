@@ -109,3 +109,5 @@ _exclude:
   - "{{ 'tests/unit/aws' if (project_tier | default('end_to_end')) != 'end_to_end' else '__aws_training_tests_included__' }}"
   - "{{ 'tests/integration/test_aws_training_job.py' if (project_tier | default('end_to_end')) != 'end_to_end' else '__aws_training_integration_included__' }}"
   - "{{ 'Dockerfile.training' if (project_tier | default('end_to_end')) != 'end_to_end' else '__training_image_included__' }}"
+  - "{{ 'infrastructure/terraform-aws/training_iam.tf' if (project_tier | default('end_to_end')) != 'end_to_end' else '__training_iam_included__' }}"
+  - "{{ 'infrastructure/terraform-aws/training_outputs.tf' if (project_tier | default('end_to_end')) != 'end_to_end' else '__training_outputs_included__' }}"
