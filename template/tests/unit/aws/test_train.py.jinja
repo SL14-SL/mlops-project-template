@@ -1,0 +1,138 @@
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+import yaml
+
+from {{ package_name }}.aws import train
+from {{ package_name }}.aws.training_config import prepare_training_job_paths
+
+
+@pytest.fixture
+def job(tmp_path: Path):
+    input_directory = tmp_path / "input"
+    input_directory.mkdir()
+    paths = prepare_training_job_paths(
+        input_directory=input_directory,
+        work_directory=tmp_path / "work",
+        model_directory=tmp_path / "model",
+        output_directory=tmp_path / "output",
+    )
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "paths": {
+                    "raw": "gs://original/data/raw",
+                    "models": "s3://original/models",
+                },
+                "tracking": {
+                    "mlflow_tracking_uri": "https://shared-tracking.example",
+                    "experiment_name": "shared",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return paths, config_path
+
+
+def test_job_config_replaces_cloud_paths_and_tracking(job) -> None:
+    paths, config_path = job
+
+    config = train.build_job_config(config_path, paths)
+
+    assert config["paths"]["raw"] == str(paths.input_directory)
+    assert config["paths"]["models"] == str(paths.work_directory / "models")
+    assert config["tracking"]["mlflow_tracking_uri"] == (
+        f"sqlite:///{paths.work_directory / 'mlflow.db'}"
+    )
+    assert config["environment"] == "isolated-training"
+    assert "shared-tracking" in config_path.read_text(encoding="utf-8")
+
+
+def test_job_config_does_not_apply_cloud_environment(
+    job,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths, config_path = job
+    monkeypatch.setenv("CLOUD_PROVIDER", "aws")
+    monkeypatch.setenv("S3_BUCKET_NAME", "unrelated-bucket")
+
+    config = train.build_job_config(config_path, paths)
+
+    assert all(
+        "://" not in value
+        for value in config["paths"].values()
+    )
+
+
+def test_unknown_path_requires_explicit_isolation_mapping(job) -> None:
+    paths, config_path = job
+    config_path.write_text(
+        "paths:\n  custom: s3://shared/custom\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="additional training paths"):
+        train.build_job_config(config_path, paths)
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "- invalid\n",
+        "paths: invalid\n",
+        "tracking: invalid\n",
+    ],
+)
+def test_invalid_config_is_rejected(job, content: str) -> None:
+    paths, config_path = job
+    config_path.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        train.build_job_config(config_path, paths)
+
+
+def test_existing_mlflow_run_prevents_job_start(
+    job,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths, config_path = job
+    monkeypatch.setattr(train.mlflow, "active_run", lambda: object())
+    factory = MagicMock()
+
+    with pytest.raises(RuntimeError, match="no active MLflow run"):
+        train.run_training_job(
+            config_path=config_path,
+            paths=paths,
+            pipeline_factory=factory,
+        )
+
+    factory.assert_not_called()
+
+
+def test_tracking_settings_are_restored_after_failure(
+    job,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths, config_path = job
+    monkeypatch.setattr(train.mlflow, "active_run", lambda: None)
+    monkeypatch.setattr(train.mlflow, "get_tracking_uri", lambda: "original-tracking")
+    monkeypatch.setattr(train.mlflow, "get_registry_uri", lambda: "original-registry")
+    set_tracking = MagicMock()
+    set_registry = MagicMock()
+    monkeypatch.setattr(train.mlflow, "set_tracking_uri", set_tracking)
+    monkeypatch.setattr(train.mlflow, "set_registry_uri", set_registry)
+    monkeypatch.setattr(train, "MlflowClient", MagicMock())
+    factory = MagicMock(side_effect=RuntimeError("factory failed"))
+
+    with pytest.raises(RuntimeError, match="factory failed"):
+        train.run_training_job(
+            config_path=config_path,
+            paths=paths,
+            pipeline_factory=factory,
+        )
+
+    assert set_tracking.call_args.args == ("original-tracking",)
+    assert set_registry.call_args.args == ("original-registry",)
