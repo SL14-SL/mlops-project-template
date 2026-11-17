@@ -3,6 +3,7 @@
 import argparse
 import json
 import shutil
+import os
 from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
@@ -11,6 +12,8 @@ from typing import Any
 import mlflow
 import yaml
 from mlflow import MlflowClient
+from mlflow.tracking._model_registry import utils as registry_utils
+from mlflow.tracking._tracking_service import utils as tracking_utils
 
 from ..configs.environment import resolve_env_placeholders
 from ..inference.releases.input_provider import build_serving_release_input
@@ -85,8 +88,13 @@ def run_training_job(
 
     config = build_job_config(config_path, paths)
     tracking_uri = config["tracking"]["mlflow_tracking_uri"]
-    previous_tracking_uri = mlflow.get_tracking_uri()
-    previous_registry_uri = mlflow.get_registry_uri()
+    # Preserve explicit configuration, including an unset registry that
+    # should continue following the tracking URI after this job.
+    previous_tracking_uri = tracking_utils._tracking_uri
+    previous_registry_uri = registry_utils._registry_uri
+    previous_environment = {
+        name: os.environ.get(name) for name in ("MLFLOW_TRACKING_URI", "MLFLOW_REGISTRY_URI")
+    }
 
     try:
         mlflow.set_tracking_uri(tracking_uri)
@@ -189,6 +197,12 @@ def run_training_job(
     finally:
         mlflow.set_tracking_uri(previous_tracking_uri)
         mlflow.set_registry_uri(previous_registry_uri)
+
+        for name, value in previous_environment.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
 
 
 def main() -> None:

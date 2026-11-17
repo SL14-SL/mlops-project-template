@@ -118,8 +118,8 @@ def test_tracking_settings_are_restored_after_failure(
 ) -> None:
     paths, config_path = job
     monkeypatch.setattr(train.mlflow, "active_run", lambda: None)
-    monkeypatch.setattr(train.mlflow, "get_tracking_uri", lambda: "original-tracking")
-    monkeypatch.setattr(train.mlflow, "get_registry_uri", lambda: "original-registry")
+    monkeypatch.setattr(train.tracking_utils, "_tracking_uri", "original-tracking")
+    monkeypatch.setattr(train.registry_utils, "_registry_uri", "original-registry")
     set_tracking = MagicMock()
     set_registry = MagicMock()
     monkeypatch.setattr(train.mlflow, "set_tracking_uri", set_tracking)
@@ -136,3 +136,31 @@ def test_tracking_settings_are_restored_after_failure(
 
     assert set_tracking.call_args.args == ("original-tracking",)
     assert set_registry.call_args.args == ("original-registry",)
+
+
+def test_unset_registry_remains_linked_to_tracking_after_failure(
+    job,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths, config_path = job
+    monkeypatch.setattr(train.tracking_utils, "_tracking_uri", None)
+    monkeypatch.setattr(train.registry_utils, "_registry_uri", None)
+    monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
+    monkeypatch.delenv("MLFLOW_REGISTRY_URI", raising=False)
+    monkeypatch.setattr(train, "MlflowClient", MagicMock())
+    factory = MagicMock(side_effect=RuntimeError("factory failed"))
+
+    with pytest.raises(RuntimeError, match="factory failed"):
+        train.run_training_job(
+            config_path=config_path,
+            paths=paths,
+            pipeline_factory=factory,
+        )
+
+    assert train.tracking_utils._tracking_uri is None
+    assert train.registry_utils._registry_uri is None
+
+    next_tracking_uri = f"sqlite:///{paths.work_directory / 'next-test.db'}"
+    train.mlflow.set_tracking_uri(next_tracking_uri)
+
+    assert train.mlflow.get_registry_uri() == next_tracking_uri
