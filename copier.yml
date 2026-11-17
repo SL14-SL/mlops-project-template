@@ -111,3 +111,5 @@ _exclude:
   - "{{ 'Dockerfile.training' if (project_tier | default('end_to_end')) != 'end_to_end' else '__training_image_included__' }}"
   - "{{ 'infrastructure/terraform-aws/training_iam.tf' if (project_tier | default('end_to_end')) != 'end_to_end' else '__training_iam_included__' }}"
   - "{{ 'infrastructure/terraform-aws/training_outputs.tf' if (project_tier | default('end_to_end')) != 'end_to_end' else '__training_outputs_included__' }}"
+  - "{{ 'infrastructure/terraform-aws/training_task.tf' if (project_tier | default('end_to_end')) != 'end_to_end' else '__training_task_included__' }}"
+  - "{{ 'infrastructure/terraform-aws/training_variables.tf' if (project_tier | default('end_to_end')) != 'end_to_end' else '__training_variables_included__' }}"

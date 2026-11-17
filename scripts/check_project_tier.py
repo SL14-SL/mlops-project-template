@@ -32,6 +32,8 @@ for relative, expected in {
     "Dockerfile.training": full,
     "infrastructure/terraform-aws/training_iam.tf": full,
     "infrastructure/terraform-aws/training_outputs.tf": full,
+    "infrastructure/terraform-aws/training_task.tf": full,
+    "infrastructure/terraform-aws/training_variables.tf": full,
 }.items():
     assert (root / relative).exists() == expected, relative
 

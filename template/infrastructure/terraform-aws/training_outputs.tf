@@ -21,3 +21,19 @@ output "training_task_role_arn" {
 output "training_log_group" {
   value = aws_cloudwatch_log_group.training.name
 }
+
+output "training_cluster_arn" {
+  value = aws_ecs_cluster.main.arn
+}
+
+output "training_task_definition_arn" {
+  value = var.training_task_enabled ? aws_ecs_task_definition.training[0].arn : null
+}
+
+output "training_security_group_id" {
+  value = aws_security_group.training_task.id
+}
+
+output "training_subnet_ids" {
+  value = aws_subnet.public[*].id
+}
