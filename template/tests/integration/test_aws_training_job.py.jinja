@@ -13,15 +13,15 @@ from mlflow import MlflowClient
 from {{ package_name }}.aws.train import run_training_job
 from {{ package_name }}.aws.training_config import prepare_training_job_paths
 from {{ package_name }}.data.contracts import DatasetCollection, DatasetSplits
-from {{ package_name }}.pipeline.service import TrainingPipeline
-from {{ package_name }}.tracking.mlflow import get_active_training_run_id
-from {{ package_name }}.training.contracts import EvaluationResult, TrainingResult
 from {{ package_name }}.inference.releases.artifact_publisher import (
     ServingArtifactSource,
 )
 from {{ package_name }}.inference.releases.contracts import TaskType
 from {{ package_name }}.inference.releases.input_provider import ServingReleaseInput
 from {{ package_name }}.inference.releases.storage import sha256_uri
+from {{ package_name }}.pipeline.service import TrainingPipeline
+from {{ package_name }}.tracking.mlflow import get_active_training_run_id
+from {{ package_name }}.training.contracts import EvaluationResult, TrainingResult
 
 
 class FixtureReleaseProvider:
