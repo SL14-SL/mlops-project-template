@@ -13,7 +13,7 @@ Generate a new project directly from the latest reviewed template release:
 ```bash
 uvx copier copy \
   --trust \
-  --vcs-ref v0.4.2 \
+  --vcs-ref v1.0.0 \
   https://github.com/SL14-SL/mlops-project-template.git \
   my-mlops-project
 ```
@@ -112,6 +112,15 @@ is validated with Terraform but has not been verified end to end on AWS.
 AWS training jobs and SageMaker execution are not included.
 
 See the [generated AWS deployment guide](template/docs/aws-deployment.md.jinja).
+
+## Stability and compatibility
+
+Starting with version 1.0.0, documented public interfaces follow the
+[stability and compatibility policy](STABILITY.md).
+
+AWS Terraform deployment remains experimental. Generated AWS-enabled
+containers are tested, while the generated infrastructure has not been
+verified end to end on AWS.
 
 ## Requirements
 
