@@ -26,6 +26,18 @@ for relative, expected in {
     f"src/{package}/notifications": full,
     f"src/{package}/monitoring/model_observability.py": full,
     "monitoring/grafana/dashboards/model-observability.json": full,
+    f"src/{package}/aws": full,
+    "tests/unit/aws": full,
+    "tests/integration/test_aws_training_job.py": full,
+    "Dockerfile.training": full,
+    "infrastructure/terraform-aws/training_iam.tf": full,
+    "infrastructure/terraform-aws/training_outputs.tf": full,
+    "infrastructure/terraform-aws/training_task.tf": full,
+    "infrastructure/terraform-aws/training_variables.tf": full,
+    "infrastructure/terraform-aws/sagemaker_iam.tf": full,
+    "infrastructure/terraform-aws/sagemaker_outputs.tf": full,
+    "scripts/training_container_smoke_test.py": full,
+    "docs/aws-training.md": full,
 }.items():
     assert (root / relative).exists() == expected, relative
 

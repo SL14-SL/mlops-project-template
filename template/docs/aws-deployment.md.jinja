@@ -20,8 +20,13 @@ The generated AWS infrastructure has not been deployed and verified
 end to end on AWS. Terraform validation does not verify IAM permissions,
 KMS access, networking, or application startup in the cloud.
 
-AWS training jobs and SageMaker execution are not included in this
-template's current AWS implementation.
+{% if project_tier == "end_to_end" %}
+For isolated training, Fargate transport and SageMaker configuration,
+see [AWS training](aws-training.md). Generated cloud execution remains
+unverified.
+{% else %}
+AWS training components are available only in the end_to_end tier.
+{% endif %}
 
 ## Architecture
 

@@ -1,0 +1,118 @@
+from pathlib import Path
+
+import pytest
+
+from {{ package_name }}.aws.training_config import prepare_training_job_paths
+
+
+def job_directories(root: Path) -> dict[str, Path]:
+    return {
+        "input_directory": root / "input",
+        "work_directory": root / "work",
+        "model_directory": root / "model",
+        "output_directory": root / "output",
+    }
+
+
+def test_prepares_isolated_directories(tmp_path: Path) -> None:
+    directories = job_directories(tmp_path)
+    directories["input_directory"].mkdir()
+    source = directories["input_directory"] / "data.csv"
+    source.write_text("value\n1\n", encoding="utf-8")
+
+    paths = prepare_training_job_paths(**directories)
+
+    assert paths.input_directory == directories["input_directory"].resolve()
+    assert paths.work_directory.is_dir()
+    assert paths.model_directory.is_dir()
+    assert paths.output_directory.is_dir()
+    assert source.read_text(encoding="utf-8") == "value\n1\n"
+
+
+@pytest.mark.parametrize(
+    "destination",
+    ["work_directory", "model_directory", "output_directory"],
+)
+def test_rejects_existing_results_before_creating_directories(
+    tmp_path: Path,
+    destination: str,
+) -> None:
+    directories = job_directories(tmp_path)
+    directories["input_directory"].mkdir()
+    occupied = directories[destination]
+    occupied.mkdir()
+    existing = occupied / "existing.txt"
+    existing.write_text("keep", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must be empty"):
+        prepare_training_job_paths(**directories)
+
+    assert existing.read_text(encoding="utf-8") == "keep"
+    for name, directory in directories.items():
+        if name not in {"input_directory", destination}:
+            assert not directory.exists()
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        ("input_directory", "work_directory"),
+        ("work_directory", "model_directory"),
+        ("model_directory", "output_directory"),
+    ],
+)
+@pytest.mark.parametrize("nested", [False, True])
+def test_rejects_overlapping_directories(
+    tmp_path: Path,
+    first: str,
+    second: str,
+    nested: bool,
+) -> None:
+    directories = job_directories(tmp_path)
+    directories["input_directory"].mkdir()
+    directories[second] = (
+        directories[first] / "nested" if nested else directories[first]
+    )
+
+    with pytest.raises(ValueError, match="must not overlap"):
+        prepare_training_job_paths(**directories)
+
+
+def test_rejects_missing_input(tmp_path: Path) -> None:
+    directories = job_directories(tmp_path)
+
+    with pytest.raises(FileNotFoundError, match="input directory"):
+        prepare_training_job_paths(**directories)
+
+    assert not directories["work_directory"].exists()
+
+
+def test_rejects_remote_directory(tmp_path: Path) -> None:
+    directories = job_directories(tmp_path)
+    directories["input_directory"] = "s3://example-bucket/data"
+
+    with pytest.raises(ValueError, match="must be local"):
+        prepare_training_job_paths(**directories)
+
+
+def test_rejects_file_as_destination(tmp_path: Path) -> None:
+    directories = job_directories(tmp_path)
+    directories["input_directory"].mkdir()
+    directories["model_directory"].write_text("keep", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="not a directory"):
+        prepare_training_job_paths(**directories)
+
+    assert not directories["work_directory"].exists()
+
+
+def test_rejects_overlap_through_symlink(tmp_path: Path) -> None:
+    directories = job_directories(tmp_path)
+    directories["input_directory"].mkdir()
+    directories["model_directory"].symlink_to(
+        directories["input_directory"],
+        target_is_directory=True,
+    )
+
+    with pytest.raises(ValueError, match="must not overlap"):
+        prepare_training_job_paths(**directories)

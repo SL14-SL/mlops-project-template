@@ -1,0 +1,102 @@
+from pathlib import Path
+
+import pytest
+
+from {{ package_name }}.aws.candidate import export_candidate_serving_input
+from {{ package_name }}.aws.training_config import prepare_training_job_paths
+from {{ package_name }}.inference.releases.artifact_publisher import (
+    ServingArtifactSource,
+)
+from {{ package_name }}.inference.releases.contracts import TaskType
+from {{ package_name }}.inference.releases.input_provider import ServingReleaseInput
+from {{ package_name }}.inference.releases.storage import sha256_uri
+
+
+@pytest.fixture
+def candidate_paths(tmp_path: Path):
+    input_directory = tmp_path / "input"
+    input_directory.mkdir()
+    paths = prepare_training_job_paths(
+        input_directory=input_directory,
+        work_directory=tmp_path / "work",
+        model_directory=tmp_path / "model",
+        output_directory=tmp_path / "output",
+    )
+    model = paths.model_directory / "model"
+    model.mkdir()
+    (model / "MLmodel").write_text("model fixture", encoding="utf-8")
+    return paths
+
+
+def release_input(source: Path, relative_path: str) -> ServingReleaseInput:
+    return ServingReleaseInput(
+        task_type=TaskType.CLASSIFICATION,
+        model_type="fixture",
+        sources={
+            "feature_schema": ServingArtifactSource(
+                source_uri=str(source),
+                relative_path=relative_path,
+            ),
+        },
+        metadata={"decision_threshold": 0.5},
+    )
+
+
+def test_exports_artifacts_and_model_checksums(candidate_paths) -> None:
+    paths = candidate_paths
+    source = paths.work_directory / "schema.json"
+    source.write_text('{"columns": ["feature"]}', encoding="utf-8")
+
+    payload = export_candidate_serving_input(
+        release_input=release_input(source, "schema.json"),
+        paths=paths,
+        run_id="fixture-run",
+    )
+
+    target = paths.model_directory / "serving_artifacts/schema.json"
+    assert target.read_bytes() == source.read_bytes()
+    assert payload["artifacts"]["feature_schema"] == {
+        "path": "serving_artifacts/schema.json",
+        "sha256": sha256_uri(str(target)),
+    }
+    assert payload["model_files"]["model/MLmodel"] == sha256_uri(
+        str(paths.model_directory / "model/MLmodel")
+    )
+    assert payload["metadata"]["decision_threshold"] == 0.5
+    assert payload["promoted"] is False
+    assert (paths.model_directory / "candidate.json").is_file()
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    ["../escape.json", "/absolute.json", "s3://bucket/file", "a/../file"],
+)
+def test_rejects_escaping_artifact_paths(
+    candidate_paths,
+    relative_path: str,
+) -> None:
+    paths = candidate_paths
+    source = paths.work_directory / "schema.json"
+    source.write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must be relative"):
+        export_candidate_serving_input(
+            release_input=release_input(source, relative_path),
+            paths=paths,
+            run_id="fixture-run",
+        )
+
+    assert not (paths.model_directory / "candidate.json").exists()
+
+
+def test_rejects_source_outside_job(candidate_paths, tmp_path: Path) -> None:
+    paths = candidate_paths
+    source = tmp_path / "outside.json"
+    source.write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="inside the job"):
+        export_candidate_serving_input(
+            release_input=release_input(source, "schema.json"),
+            paths=paths,
+            run_id="fixture-run",
+        )
