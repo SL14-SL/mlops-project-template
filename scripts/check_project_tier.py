@@ -29,6 +29,7 @@ for relative, expected in {
     f"src/{package}/aws": full,
     "tests/unit/aws": full,
     "tests/integration/test_aws_training_job.py": full,
+    "Dockerfile.training": full,
 }.items():
     assert (root / relative).exists() == expected, relative
 
