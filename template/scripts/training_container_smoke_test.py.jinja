@@ -59,6 +59,7 @@ def build_fixture_pipeline(config):
 RUNNER_SOURCE = """\
 import runpy
 import sys
+from pathlib import Path
 
 import cloudpickle
 import project_adapters
@@ -80,7 +81,15 @@ sys.argv = [
     "--output-dir", "/opt/ml/output/data",
 ]
 
-runpy.run_module("{{ package_name }}.aws.train", run_name="__main__")
+try:
+    runpy.run_module("{{ package_name }}.aws.train", run_name="__main__")
+finally:
+    # Synthetic smoke-test exports must remain readable and removable
+    # by the host user, whose UID can differ from the container UID.
+    for directory in (Path("/opt/ml/model"), Path("/opt/ml/output/data")):
+        for path in directory.rglob("*"):
+            if not path.is_symlink():
+                path.chmod(0o777 if path.is_dir() else 0o644)
 """
 
 
