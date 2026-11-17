@@ -12,7 +12,6 @@ import mlflow
 import yaml
 from mlflow import MlflowClient
 
-from .candidate import export_candidate_serving_input
 from ..configs.environment import resolve_env_placeholders
 from ..inference.releases.input_provider import build_serving_release_input
 from ..pipeline.project_factory import build_project_training_pipeline
@@ -20,6 +19,7 @@ from ..pipeline.runner import run_training_pipeline
 from ..pipeline.service import TrainingPipeline
 from ..tracking.mlflow import log_evaluation_result, log_training_result
 from ..tracking.model_artifact import log_model_artifact
+from .candidate import export_candidate_serving_input
 from .training_config import TrainingJobPaths, prepare_training_job_paths
 
 PipelineFactory = Callable[[dict[str, Any]], TrainingPipeline]
