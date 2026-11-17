@@ -210,6 +210,14 @@ jobs:
             "${{ matrix.project_slug }}-training:check" \
             --format '{{.Config.User}}')" = "appuser"
 
+      - name: Verify complete training inside container
+        if: matrix.project_tier == 'end_to_end'
+        working-directory: generated/${{ matrix.project_slug }}
+        run: >-
+          uv run --extra aws python
+          scripts/training_container_smoke_test.py
+          --image "${{ matrix.project_slug }}-training:check"
+
       - name: Scan training image
         if: matrix.project_tier == 'end_to_end'
         uses: aquasecurity/trivy-action@v0.36.0
