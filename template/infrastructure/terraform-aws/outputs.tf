@@ -65,3 +65,9 @@ output "api_endpoint" {
 output "api_gateway_log_group" {
   value = aws_cloudwatch_log_group.api_gateway.name
 }
+output "api_image_uri" {
+  value = "${aws_ecr_repository.api.repository_url}@${var.api_image_digest}"
+}
+output "serving_models_uri" {
+  value = "s3://${aws_s3_bucket.artifacts.id}/models"
+}

@@ -157,23 +157,32 @@ monitoring-validate: ## Validate Prometheus and Alertmanager configuration
 
 .PHONY: terraform-fmt
 terraform-fmt: ## Check Terraform formatting
+{% if cloud_provider == 'gcp' %}
 	terraform -chdir=infrastructure/terraform-bootstrap fmt -check -recursive
 	terraform -chdir=infrastructure/terraform fmt -check -recursive
+{% else %}
 	terraform -chdir=infrastructure/terraform-aws fmt -check -recursive
+{% endif %}
 
 
 .PHONY: terraform-init
 terraform-init: ## Initialize Terraform without a remote backend
+{% if cloud_provider == 'gcp' %}
 	terraform -chdir=infrastructure/terraform-bootstrap init -backend=false
 	terraform -chdir=infrastructure/terraform init -backend=false
+{% else %}
 	terraform -chdir=infrastructure/terraform-aws init -backend=false -lockfile=readonly
+{% endif %}
 
 
 .PHONY: terraform-validate
 terraform-validate: terraform-init terraform-fmt ## Validate Terraform modules
+{% if cloud_provider == 'gcp' %}
 	terraform -chdir=infrastructure/terraform-bootstrap validate
 	terraform -chdir=infrastructure/terraform validate
+{% else %}
 	terraform -chdir=infrastructure/terraform-aws validate
+{% endif %}
 {% endif %}
 
 

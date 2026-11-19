@@ -1,289 +1,60 @@
 # AWS training
 
-This guide applies to the end_to_end tier.
+The AWS end-to-end tier runs the shared model lifecycle on Fargate. Implement the
+project-specific adapters in `src/{{ package_name }}/pipeline/project_factory.py`.
+Classification and forecasting use the same contracts with task-specific serving bundles.
+The default adapter deliberately raises `NotImplementedError` until implemented.
 
-## Scope
+## Shared cloud lifecycle
 
-The template provides:
+Follow [AWS deployment](aws-deployment.md), then [AWS lifecycle](aws-lifecycle.md).
+The task definition now starts `{{ package_name }}.aws.lifecycle` with command `train`.
+It reads the normal S3 project paths and uses a shared remote MLflow registry.
+Do not assume that uploading data under an old isolated-job prefix changes those paths.
 
-- An isolated training entry point using the project's training adapters.
-- Local SQLite-backed MLflow tracking for each job.
-- A portable model candidate with serving artifacts and checksums.
-- A non-root training container.
-- A Fargate adapter for S3 input download and candidate upload.
-- An optional Fargate task definition and scoped IAM roles.
-- A SageMaker training-request generator and execution role.
+```bash
+gh workflow run lifecycle-aws.yml --ref main -f environment=dev -f operation=train
+```
 
-Generated projects still require a project-specific implementation of
-`build_project_training_pipeline`. The generated placeholder cannot train
-a business model.
+Review logs, evaluation, the promotion decision and the active serving release.
+A successful task can legitimately skip promotion if the challenger fails the policy.
+When serving is enabled, promotion refreshes ECS and verifies the loaded release.
+Image rollbacks and model rollbacks are separate operations.
 
-The job does not register a model, assign registry aliases, activate a
-serving release, or deploy the API.
+## Optional isolated training utility
 
-## Verification status
+The earlier isolated training utility remains available for adapter development:
 
-Automated checks cover:
+```bash
+uv run --extra aws python -m {{ package_name }}.aws.train --help
+uv run --extra aws python -m {{ package_name }}.aws.fargate_train --help
+```
 
-- Directory isolation and protection of existing results.
-- Real local MLflow training, candidate export and model reload.
-- Serving-artifact and model-file checksums.
-- S3 transport using a simulated client.
-- Training inside a network-disabled container with synthetic mounts.
-- Container image vulnerability scans.
-- SageMaker request generation.
-- Terraform initialization and validation.
+`aws.train` runs locally with explicit input/work/model/output directories and a
+job-local tracking backend. It exports a reloadable candidate; it does not promote
+the shared champion. `aws.fargate_train` wraps that utility with S3 transport when
+explicitly invoked. It is no longer the default ECS task entry point.
 
-Fargate training was verified on AWS using a generated forecasting project
-and a synthetic pipeline on November 17, 2026. Verification included S3/KMS
-access, candidate upload, checksum validation and model reload.
-
-Classification is covered by automated local and container tests but was
-not separately executed on AWS. SageMaker cloud execution remains unverified.
-
-The container mount test uses explicitly writable synthetic output
-directories. It does not prove that SageMaker's mounted directories
-have compatible permissions for UID 10001.
-
-## Implement the project pipeline
-
-Implement the factory in:
-
-`src/{{ package_name }}/pipeline/project_factory.py`
-
-Provide the existing ingestion, feature-building, splitting, training,
-evaluation, model-logging and serving-input adapters.
-
-The trainer must use `get_active_training_run_id()` for its TrainingResult.
-The job starts the MLflow run before invoking the trainer.
-
-The job overrides these paths:
-
-| Config key | Job location |
-| --- | --- |
-| data_root | work/data |
-| raw | input directory |
-| interim | work/data/interim |
-| processed | work/data/processed |
-| artifacts | work/artifacts |
-| models | work/models |
-
-Additional named paths require an explicit isolation mapping in
-`aws/train.py`. Unknown keys are rejected.
-
-Serving artifact sources must be local files inside the job input or work
-directory. Their destination paths must be unique relative POSIX paths.
-
-Install all dependencies required by the project's model and adapters
-before building the training image. No packages are installed during training.
-
-## Run locally
+Build and test the isolated adapter image after implementing the adapters:
 
 ```bash
 uv sync --extra aws
-
-uv run --extra aws python -m {{ package_name }}.aws.train \
-  --config configs/dev.yaml \
-  --input-dir data/raw \
-  --work-dir artifacts/training-check/work \
-  --model-dir artifacts/training-check/model \
-  --output-dir artifacts/training-check/output
-```
-
-Input must exist. Work, model and output directories must be empty or absent.
-All four directories must be separate and must not contain each other.
-
-The YAML configuration is loaded directly. The application's cloud path
-override is not applied. Tracking and registry settings are temporarily
-redirected to the job's local backend.
-
-This isolates the framework's configured paths and tracking state; it is
-not a security sandbox for arbitrary project-specific Python code.
-
-## Candidate layout
-
-```text
-model/
-  model/
-    MLmodel
-    ...
-  serving_artifacts/
-    ...
-  candidate.json
-output/
-  evaluation.json
-```
-
-`candidate.json` records the run ID, task type, model type, project metadata,
-artifact references, model-file checksums and `promoted: false`.
-
-`evaluation.json` records metrics, evaluation approval and rejection reasons.
-
-Rejected candidates are also exported for inspection. Successful job
-execution does not imply evaluation approval or promotion.
-
-A candidate must be reviewed and converted into a serving release through
-the project's release workflow before it is used by the API.
-Uploading a candidate alone does not change the active API model.
-
-## Build and test the container
-
-```bash
-uv sync --extra aws
-
-docker build \
-  -f Dockerfile.training \
-  -t {{ project_slug }}-training:local \
-  .
-
-docker run --rm {{ project_slug }}-training:local
-
+docker build -f Dockerfile.training -t {{ project_slug }}-training:local .
 uv run --extra aws python scripts/training_container_smoke_test.py \
   --image {{ project_slug }}-training:local
 ```
 
-The default command prints CLI help.
+The container smoke fixture supplies synthetic adapters; it does not verify your
+production dataset or project training implementation. SageMaker request helpers
+remain optional and cloud execution has not been verified.
 
-The smoke test uses synthetic adapters from the integration test. It does
-not execute the project's production training implementation.
+## Verification scope and cleanup
 
-## Prepare AWS resources
+The forecasting reference project was verified on AWS, including registry,
+persistence and a technical identical-weight release switch/rollback. Generated
+projects still require account-specific IAM, KMS, networking and adapter verification.
+Offline tests cannot establish cloud deployment success.
 
-Follow the base infrastructure setup in [AWS deployment](aws-deployment.md).
-Keep API serving disabled unless an API deployment is also needed.
-
-The end-to-end tier adds a training ECR repository, roles, log group and
-security group.
-
-Build and push the training image to the repository identified by the
-`training_repository_url` Terraform output. Use the API guide's ECR login
-and image-push procedure, replacing the Dockerfile with Dockerfile.training
-and selecting the training repository.
-
-Use a Linux/amd64 image and pin its image manifest digest.
-
-Set the local Terraform variables:
-
-```hcl
-training_task_enabled = true
-training_image_digest = "sha256:REPLACE_WITH_ACTUAL_DIGEST"
-```
-
-Review and apply a Terraform plan to register the task definition.
-Applying Terraform does not start a training task.
-
-Upload the project's required input files under the `training_input_uri`
-prefix. Preserve the relative file layout expected by the ingestor.
-
-## Fargate execution
-
-Run the task explicitly with AWS ECS RunTask.
-
-Use these Terraform outputs:
-
-- training_cluster_arn
-- training_task_definition_arn
-- training_subnet_ids
-- training_security_group_id
-
-Select FARGATE launch type, Linux platform version 1.4.0 and
-assignPublicIp=ENABLED.
-
-The task defaults to:
-
-- Input: training_input_uri
-- Output: training_output_uri
-- Config: configs/dev.yaml
-- Training subprocess timeout: 900 seconds
-
-For versioned input prefixes or a different config, override the training
-container's command when submitting the task.
-
-Download and upload time are outside the subprocess timeout. Stop the ECS
-task explicitly if the overall job runs longer than intended.
-
-Each execution writes to a unique `fargate-...` result prefix. The adapter
-uploads model and evaluation files, then writes completion.json last.
-
-Treat a result prefix without completion.json as incomplete. Failed uploads
-can leave partial results requiring cleanup.
-
-Verify all of the following:
-
-1. ECS task stopped with container exit code 0.
-2. completion.json has status completed.
-3. Candidate and evaluation run IDs agree.
-4. Evaluation approval is reviewed separately.
-5. Downloaded artifacts match their checksums.
-6. The exported model reloads and produces expected predictions.
-
-The S3 adapter's completion marker includes an inventory of uploaded files
-and their SHA-256 checksums.
-
-## SageMaker execution
-
-Generate a request without submitting it:
-
-```bash
-uv run --extra aws python -m {{ package_name }}.aws.sagemaker_config \
-  --job-name your-unique-training-job \
-  --role-arn YOUR_SAGEMAKER_TRAINING_ROLE_ARN \
-  --image-uri YOUR_TRAINING_REPOSITORY_URI@sha256:YOUR_IMAGE_DIGEST \
-  --input-uri s3://YOUR_BUCKET/training/input \
-  --output-uri s3://YOUR_BUCKET/training/output \
-  --kms-key-arn YOUR_STORAGE_KMS_KEY_ARN \
-  > training-job.json
-```
-
-Use the Terraform outputs sagemaker_training_role_arn,
-training_repository_url and storage_kms_key_arn.
-
-Review the generated request before submitting it:
-
-```bash
-aws sagemaker create-training-job \
-  --cli-input-json file://training-job.json
-```
-
-The generated request uses one ml.m5.xlarge instance, a 20 GiB encrypted
-volume, a 900-second runtime limit and network isolation.
-
-The selected region must have sufficient training-instance quota.
-The submitting identity also needs the relevant SageMaker, iam:PassRole,
-and KMS permissions. The service role does not grant these to the operator.
-
-SageMaker stages input files and collects model/output files. The container
-runs the common local training entry point, not the Fargate S3 adapter.
-
-Use DescribeTrainingJob to inspect status, failure reason and the
-ModelArtifacts.S3ModelArtifacts location. SageMaker packages artifacts;
-its S3 layout differs from the Fargate adapter's result prefix.
-It does not create the Fargate completion.json marker.
-
-Non-root access to SageMaker-mounted directories remains unverified.
-Do not assume a successful local mount test guarantees cloud execution.
-
-## Logs and cleanup
-
-Fargate logs use the Terraform-managed training_log_group.
-
-SageMaker uses the shared /aws/sagemaker/TrainingJobs log group.
-This shared group is not managed by this project's Terraform configuration.
-Review retention and remove only this project's log streams when appropriate.
-
-Stop active training jobs before destroying infrastructure.
-
-For full teardown, follow [AWS deployment](aws-deployment.md), and also
-handle the training ECR repository:
-
-- Temporarily set force_delete = true on aws_ecr_repository.training.
-- Apply the deletion-option changes before creating the destroy plan.
-- Verify both image repositories and all S3 object versions are included
-  in the intended permanent cleanup.
-- Reset temporary deletion options in the source afterward.
-
-A Terraform destroy does not remove SageMaker job history or unmanaged
-shared logs. Review those separately.
-
-Training inputs, candidate outputs, images, logs, KMS keys and Secrets
-Manager resources can incur costs even while no training task is running.
+Use [AWS deployment](aws-deployment.md) for cleanup. Preserve models/metadata that
+matter before removing the stack, and check retained snapshots, S3 versions, ECR,
+secret recovery windows and the separate Terraform state bucket.

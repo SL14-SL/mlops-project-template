@@ -1,6 +1,8 @@
 {% if task_type == "classification" -%}
 from unittest.mock import MagicMock
 
+import pytest
+
 from {{ package_name }}.inference import bundle_loader
 from {{ package_name }}.inference.releases.contracts import (
     ArtifactReference,
@@ -10,6 +12,8 @@ from {{ package_name }}.inference.releases.contracts import (
 )
 {% elif task_type == "forecasting" -%}
 from unittest.mock import MagicMock
+
+import pytest
 
 from {{ package_name }}.inference import bundle_loader
 from {{ package_name }}.inference.releases.contracts import (
@@ -198,3 +202,21 @@ def test_load_active_serving_bundle_uses_active_manifest(
         build_bundle.call_args.kwargs["release_root"]
         == "/active-release"
     )
+
+def test_integrity_failure_prevents_model_deserialization(monkeypatch):
+    from dataclasses import replace
+
+    original = build_manifest()
+    manifest = replace(
+        original, artifacts={**original.artifacts, "model_file_0000": artifact("model/MLmodel")}
+    )
+    model_loader = MagicMock()
+    def corrupt(**kwargs):
+        raise ValueError("checksum mismatch")
+    monkeypatch.setattr(bundle_loader, "resolve_artifact_uri", corrupt)
+    with pytest.raises(ValueError, match="checksum mismatch"):
+        bundle_loader.build_serving_bundle(
+            manifest=manifest, release_root="/release", serving_alias="champion",
+            model_loader=model_loader,
+        )
+    model_loader.assert_not_called()

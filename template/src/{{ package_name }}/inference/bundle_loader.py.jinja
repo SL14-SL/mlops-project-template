@@ -59,16 +59,15 @@ def build_serving_bundle(
 ) -> ServingBundle:
     """Load and validate a complete serving bundle."""
     validate_task_manifest(manifest)
+    artifact_uris = {
+        name: resolve_artifact_uri(release_root=release_root, reference=reference)
+        for name, reference in manifest.artifacts.items()
+    }
     model = model_loader(manifest.model.uri)
 
 {% if task_type == "classification" %}
-    feature_schema_uri = resolve_artifact_uri(
-        release_root=release_root,
-        reference=_required_artifact(
-            manifest,
-            "feature_schema",
-        ),
-    )
+    feature_schema_uri = artifact_uris["feature_schema"]
+
     feature_schema = load_json(feature_schema_uri)
     decision_threshold = (
         manifest.metadata or {}
@@ -83,10 +82,6 @@ def build_serving_bundle(
         feature_schema=feature_schema,
     )
 {% elif task_type == "forecasting" %}
-    artifact_uris = {
-        name: resolve_artifact_uri(release_root=release_root, reference=reference)
-        for name, reference in manifest.artifacts.items()
-    }
     bundle = ServingBundle(
         release_id=manifest.release_id,
         manifest=manifest,

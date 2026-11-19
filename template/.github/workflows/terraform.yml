@@ -34,57 +34,14 @@ jobs:
         with:
           terraform_wrapper: false
 
-      - name: Check bootstrap formatting
-        run: >-
-          terraform
-          -chdir=infrastructure/terraform-bootstrap
-          fmt
-          -check
-          -recursive
-
-      - name: Initialize bootstrap module
-        run: >-
-          terraform
-          -chdir=infrastructure/terraform-bootstrap
-          init
-          -backend=false
-          -input=false
-
-      - name: Validate bootstrap module
-        run: >-
-          terraform
-          -chdir=infrastructure/terraform-bootstrap
-          validate
-
-      - name: Check deployment formatting
-        run: >-
-          terraform
-          -chdir=infrastructure/terraform
-          fmt
-          -check
-          -recursive
-
-      - name: Initialize deployment module
-        run: >-
-          terraform
-          -chdir=infrastructure/terraform
-          init
-          -backend=false
-          -input=false
-
-      - name: Validate deployment module
-        run: >-
-          terraform
-          -chdir=infrastructure/terraform
-          validate
-
-      - name: Check AWS formatting
-        run: terraform -chdir=infrastructure/terraform-aws fmt -check -recursive
-
-      - name: Initialize AWS module
-        run: >-
-          terraform -chdir=infrastructure/terraform-aws
-          init -backend=false -input=false -lockfile=readonly
-
-      - name: Validate AWS module
-        run: terraform -chdir=infrastructure/terraform-aws validate
+      - name: Validate selected cloud modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          for module in infrastructure/terraform-bootstrap infrastructure/terraform infrastructure/terraform-aws; do
+            if [ -d "$module" ]; then
+              terraform -chdir="$module" fmt -check -recursive
+              terraform -chdir="$module" init -backend=false -input=false
+              terraform -chdir="$module" validate
+            fi
+          done

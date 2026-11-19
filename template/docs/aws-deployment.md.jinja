@@ -97,10 +97,17 @@ Edit the local file:
 
 The local tfvars file is ignored by Git.
 
-Initialize, review, and apply:
+Initialize, review, and apply. Set `STATE_KEY` to `OWNER/{{ project_slug }}/dev/terraform.tfstate`
+using your actual GitHub owner and repository name. This must match the workflow
+key `${GITHUB_REPOSITORY}/${environment}/terraform.tfstate`; a different key creates
+a separate state and can lead to duplicate resources.
 
 ```bash
-terraform -chdir=infrastructure/terraform-aws init
+terraform -chdir=infrastructure/terraform-aws init \
+  -backend-config="bucket=$STATE_BUCKET" \
+  -backend-config="key=$STATE_KEY" \
+  -backend-config="region=$AWS_REGION" \
+  -backend-config="use_lockfile=true"
 
 terraform -chdir=infrastructure/terraform-aws plan \
   -out=aws-base.tfplan
@@ -112,9 +119,54 @@ terraform -chdir=infrastructure/terraform-aws apply \
 This creates persistent resources even while serving is disabled,
 including S3, ECR, KMS, Secrets Manager, logs, IAM roles, and networking.
 
-The configuration uses local Terraform state. Preserve it securely and
-do not commit state or plan files. Configure a suitable remote backend
-before collaborating on a shared deployment.
+The module uses an S3 backend. Create the state bucket separately before initialization,
+set `STATE_BUCKET` to its name, block all public access and enable versioning. Keep the
+bucket until application teardown has completed. Do not commit state or plan files.
+For an isolated offline validation use `terraform init -backend=false`.
+
+## GitHub Actions and OIDC
+
+Create a GitHub environment (for example `dev`) and set environment variables:
+
+- `AWS_ACCOUNT_ID`: your account ID.
+- `AWS_REGION`: the deployment region.
+- `AWS_TF_STATE_BUCKET`: the separately created state bucket.
+- `AWS_DEPLOY_ROLE_ARN`: a deployment role trusted by the GitHub OIDC provider.
+{% if project_tier == 'end_to_end' %}
+- `AWS_MANAGED_MLFLOW=true`: provision the managed tracking stack.
+{% endif %}
+
+The role trust must require audience `sts.amazonaws.com` and the exact repository and
+environment subject. Check the repository OIDC configuration with
+`gh api repos/OWNER/REPO/actions/oidc/customization/sub`: immutable subjects can include
+owner/repository IDs. Do not assume the old `repo:OWNER/REPO:environment:dev` format.
+Use the actual subject prefix and append the environment claim required by GitHub.
+Review repository/environment protection before authorizing deployments.
+
+Grant the role project-scoped permissions for Terraform-managed services and state
+bucket/object access, including native S3 lock objects. Include KMS permissions for
+the encrypted project bucket and `iam:PassRole` restricted to the generated ECS roles.
+{% if project_tier == 'end_to_end' %}
+Managed MLflow also needs RDS, ECS, ECR, ELB, API Gateway, Lambda, Secrets Manager,
+CloudWatch and related IAM provisioning permissions. API Gateway IAM operations use
+HTTP verbs such as `GET`, `POST`, `PATCH`, `PUT`, `DELETE`, rather than `TagResource`.
+{% endif %}
+A policy is account-specific: validate it with IAM Access Analyzer, review its resource
+scope and test a plan before applying. Organization SCP denies must be resolved at
+the organization level; attaching another role policy cannot override them.
+
+```bash
+gh workflow run deploy-aws.yml --ref main \
+  -f environment=dev -f enable_serving=false -f apply_changes=false
+```
+
+Inspect the plan, then dispatch with `apply_changes=true` to build images and provision
+the stack. Bootstrap first creates repositories and the API secret; images are pinned
+by digest. Existing API tokens are retained. Never run competing local and CI applies.
+{% if project_tier == 'end_to_end' %}
+Continue with [the lifecycle guide](aws-lifecycle.md), implementing the project adapters
+before launching training. Enable serving only after a valid release is published.
+{% endif %}
 
 ## Upload an AWS-enabled API image
 

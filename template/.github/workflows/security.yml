@@ -100,3 +100,20 @@ jobs:
           trivyignores: .trivyignore
           format: table
           exit-code: "1"
+
+      - name: Build MLflow image
+        if: hashFiles('Dockerfile.mlflow') != ''
+        run: docker build -f Dockerfile.mlflow --tag "mlops-mlflow-security-scan:${{ github.sha }}" .
+
+      - name: Scan MLflow image
+        if: hashFiles('Dockerfile.mlflow') != ''
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: "mlops-mlflow-security-scan:${{ github.sha }}"
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          format: table
+          exit-code: "1"

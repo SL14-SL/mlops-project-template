@@ -1,0 +1,37 @@
+# Managed MLflow on AWS
+
+The end-to-end AWS tier can provision MLflow on a single Fargate task, PostgreSQL
+on RDS and S3 artifacts. This is a self-hosted MLflow service on AWS-managed
+infrastructure, not Amazon SageMaker Managed MLflow.
+
+The task uses 1 vCPU and 4 GiB memory. A single task means restarts cause a short
+interruption. PostgreSQL and S3 retain registry metadata and model artifacts across
+restarts. API Gateway and its Lambda authorizer protect the private ALB path with
+a bearer token stored in Secrets Manager. The internal ALB-to-container leg uses HTTP.
+
+Set `AWS_MANAGED_MLFLOW=true` in the deployment environment. The deploy workflow
+initializes the token only when no current secret version exists, then verifies
+registry operations and artifact access. Never print tokens in logs or commit them.
+
+```bash
+gh workflow run verify-mlflow-aws.yml --ref main -f environment=dev
+```
+
+The verification creates a smoke model, restarts the MLflow task and checks existing
+metadata and artifacts. The model-neutral smoke test does not train your business model.
+
+For browser access from your authenticated workstation:
+
+```bash
+AWS_PROFILE=your-profile AWS_REGION=eu-north-1 \
+uv run --extra aws python -m {{ package_name }}.aws.mlflow_ui_proxy
+```
+
+Open `http://127.0.0.1:5001`; keep the process running. This local process proxies the
+remote MLflow UI and injects its bearer token. It does not host your registry database.
+
+RDS, Fargate, ALBs and storage incur charges while provisioned. Destroy disposable
+stacks after verification. RDS deletion protection must be deliberately disabled for
+teardown; review snapshots, retained secrets, versioned S3 objects, ECR and the separately
+created Terraform state bucket afterward. Keep backups if the models or metadata matter.
+The state bucket must remain until all managed application resources have been removed.

@@ -11,7 +11,7 @@ dependencies = [
     "fsspec==2026.9.0",
     "gcsfs==2026.10.1",
     "httpx2>=2.12.0",
-    "mlflow==3.17.2",
+    "mlflow==3.18.0",
     "pandas==2.3.3",
 {% if project_tier == "end_to_end" %}
     "prefect==3.8.8",
@@ -29,6 +29,10 @@ aws = [
     "boto3",
     "s3fs",
 ]
+
+{% if cloud_provider == "aws" and project_tier == "end_to_end" %}
+mlflow-server = ["psycopg2-binary>=2.9.10,<3"]
+{% endif %}
 
 [dependency-groups]
 dev = [

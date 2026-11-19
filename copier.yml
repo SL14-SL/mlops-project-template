@@ -48,6 +48,14 @@ project_tier:
     "3 - End-to-end MLOps": end_to_end
   default: end_to_end
 
+cloud_provider:
+  type: str
+  help: Cloud deployment platform (local development remains available)
+  choices:
+    Google Cloud: gcp
+    Amazon Web Services: aws
+  default: gcp
+
 python_version:
   type: str
   help: Python version used by the project
@@ -117,3 +125,39 @@ _exclude:
   - "{{ 'infrastructure/terraform-aws/sagemaker_outputs.tf' if (project_tier | default('end_to_end')) != 'end_to_end' else '__sagemaker_outputs_included__' }}"
   - "{{ 'scripts/training_container_smoke_test.py' if (project_tier | default('end_to_end')) != 'end_to_end' else '__training_container_smoke_included__' }}"
   - "{{ 'docs/aws-training.md' if (project_tier | default('end_to_end')) != 'end_to_end' else '__aws_training_doc_included__' }}"
+  - "{{ 'infrastructure/terraform-aws' if cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ 'infrastructure/terraform' if cloud_provider != 'gcp' else '__cloud_selection_included__' }}"
+  - "{{ 'infrastructure/terraform-bootstrap' if cloud_provider != 'gcp' else '__cloud_selection_included__' }}"
+  - "{{ '.github/workflows/deploy.yml' if cloud_provider != 'gcp' else '__cloud_selection_included__' }}"
+  - "{{ '.github/workflows/rollback.yml' if cloud_provider != 'gcp' else '__cloud_selection_included__' }}"
+  - "{{ 'docs/cloud-deployment.md' if cloud_provider != 'gcp' else '__cloud_selection_included__' }}"
+  - "{{ 'docs/cloud-teardown.md' if cloud_provider != 'gcp' else '__cloud_selection_included__' }}"
+  - "{{ 'docs/aws-deployment.md' if cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ 'docs/aws-training.md' if cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ 'infrastructure/terraform-aws/mlflow.tf' if project_tier != 'end_to_end' else '__cloud_selection_included__' }}"
+  - "{{ 'infrastructure/terraform-aws/mlflow_gateway.tf' if project_tier != 'end_to_end' else '__cloud_selection_included__' }}"
+  - "{{ 'infrastructure/terraform-aws/mlflow_authorizer' if project_tier != 'end_to_end' else '__cloud_selection_included__' }}"
+  - "{{ 'infrastructure/terraform-aws/lifecycle.tf' if project_tier != 'end_to_end' else '__cloud_selection_included__' }}"
+  - "{{ 'infrastructure/terraform-aws/mlflow_variables.tf' if project_tier != 'end_to_end' else '__cloud_selection_included__' }}"
+  - "{{ 'infrastructure/terraform-aws/mlflow_outputs.tf' if project_tier != 'end_to_end' else '__cloud_selection_included__' }}"
+  - "{{ 'infrastructure/terraform-aws/mlflow_disabled.tf' if project_tier == 'end_to_end' else '__cloud_selection_included__' }}"
+  - "{{ 'Dockerfile.mlflow' if project_tier != 'end_to_end' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ '.github/actions/aws-context' if project_tier == 'api' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ '.github/workflows/deploy-aws.yml' if project_tier == 'api' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ '.github/workflows/rollback-aws.yml' if project_tier == 'api' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ '.github/workflows/lifecycle-aws.yml' if project_tier != 'end_to_end' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ '.github/workflows/verify-mlflow-aws.yml' if project_tier != 'end_to_end' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ 'scripts/run_aws_task.py' if project_tier != 'end_to_end' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ 'scripts/ensure_mlflow_token.py' if project_tier != 'end_to_end' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ 'scripts/restart_mlflow_aws.py' if project_tier != 'end_to_end' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ 'scripts/smoke_mlflow_aws.py' if project_tier != 'end_to_end' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ 'docs/aws-lifecycle.md' if project_tier != 'end_to_end' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ 'docs/aws-mlflow.md' if project_tier != 'end_to_end' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ 'src/' ~ package_name ~ '/aws' if project_tier != 'end_to_end' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ 'tests/unit/aws' if project_tier != 'end_to_end' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ 'tests/integration/test_aws_training_job.py' if project_tier != 'end_to_end' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ 'Dockerfile.training' if project_tier != 'end_to_end' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ 'scripts/training_container_smoke_test.py' if project_tier != 'end_to_end' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ 'scripts/ensure_api_key.py' if project_tier == 'api' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ 'scripts/plan_aws_image_rollback.py' if project_tier == 'api' or cloud_provider != 'aws' else '__cloud_selection_included__' }}"
+  - "{{ 'src/' ~ package_name ~ '/inference/releases/portable_publisher.py' if project_tier != 'end_to_end' else '__cloud_selection_included__' }}"

@@ -1,0 +1,52 @@
+{% raw %}
+name: Roll back AWS API image
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [dev, staging, prod]
+        default: dev
+      image_digest:
+        description: Previously tested API sha256 digest
+        required: true
+        type: string
+      apply_changes:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: aws-${{ inputs.environment }}
+  cancel-in-progress: false
+jobs:
+  rollback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/aws-context
+        with:
+          role_arn: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          state_bucket: ${{ vars.AWS_TF_STATE_BUCKET }}
+          environment: ${{ inputs.environment }}
+      - name: Build rollback variables from the current state
+        env:
+          API_DIGEST: ${{ inputs.image_digest }}
+        run: python scripts/plan_aws_image_rollback.py
+      - name: Plan image rollback
+        run: terraform -chdir=infrastructure/terraform-aws plan -input=false -var-file=rollback.auto.tfvars.json -out=rollback.tfplan
+      - name: Reject unrelated infrastructure changes
+        run: python scripts/plan_aws_image_rollback.py --check-plan
+      - name: Apply image rollback
+        if: inputs.apply_changes
+        run: terraform -chdir=infrastructure/terraform-aws apply -input=false -auto-approve rollback.tfplan
+      - name: Verify readiness
+        if: inputs.apply_changes
+        run: |
+          endpoint=$(terraform -chdir=infrastructure/terraform-aws output -raw api_endpoint)
+          curl --fail-with-body --retry 8 --retry-all-errors --retry-delay 10 "$endpoint/readyz"
+{% endraw %}

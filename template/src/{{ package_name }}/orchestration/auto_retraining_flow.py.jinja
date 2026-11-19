@@ -1,0 +1,19 @@
+"""Run the same retraining gates from Prefect on either cloud."""
+
+from prefect import flow
+
+from ..configs.loader import load_config
+from .retraining_service import run_auto_retraining
+
+
+@flow(
+    name="{{ project_slug }}-auto-retraining",
+    validate_parameters=False,
+    persist_result=False,
+)
+def auto_retraining_flow(evaluated_at: str | None = None):
+    return run_auto_retraining(config=load_config(), evaluated_at=evaluated_at)
+
+
+if __name__ == "__main__":
+    auto_retraining_flow()
