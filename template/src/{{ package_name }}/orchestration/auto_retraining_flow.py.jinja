@@ -6,7 +6,11 @@ from ..configs.loader import load_config
 from .retraining_service import run_auto_retraining
 
 
-@flow(name="{{ project_slug }}-auto-retraining", validate_parameters=False, persist_result=False)
+@flow(
+    name="{{ project_slug }}-auto-retraining",
+    validate_parameters=False,
+    persist_result=False,
+)
 def auto_retraining_flow(evaluated_at: str | None = None):
     return run_auto_retraining(config=load_config(), evaluated_at=evaluated_at)
 
