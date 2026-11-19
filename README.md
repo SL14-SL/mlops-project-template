@@ -13,7 +13,7 @@ Generate a new project directly from the latest reviewed template release:
 ```bash
 uvx copier copy \
   --trust \
-  --vcs-ref v1.1.0 \
+  --vcs-ref v1.2.0 \
   https://github.com/SL14-SL/mlops-project-template.git \
   my-mlops-project
 ```
@@ -26,12 +26,13 @@ changes intended for the next template release.
 
 ## Cloud selection
 
-The next template revision adds an explicit `cloud_provider` choice, defaulting to
-`gcp` for existing Copier answers. Generate from a reviewed checkout to try it:
+Version 1.2.0 includes an explicit `cloud_provider` choice, defaulting to
+`gcp` for existing Copier answers. Generate an AWS project from the tagged release:
 
 ```bash
-uv run copier copy --defaults --data cloud_provider=aws \
-  --data task_type=forecasting --data project_tier=end_to_end . ../my-aws-project
+uvx copier copy --defaults --vcs-ref v1.2.0 --data cloud_provider=aws \
+  --data task_type=forecasting --data project_tier=end_to_end \
+  https://github.com/SL14-SL/mlops-project-template.git my-aws-project
 ```
 
 The CI matrix covers two task types, three tiers and two clouds (12 variants).

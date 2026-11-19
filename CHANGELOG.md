@@ -6,6 +6,8 @@ The template follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-19
+
 ### Added
 
 - Explicit AWS/GCP selection across both tasks and all three tiers; 12 CI variants.
@@ -16,7 +18,18 @@ The template follows Semantic Versioning.
 
 ### Changed
 
+- Generate only the selected cloud provider infrastructure and workflows.
+- Quickstart examples reference v1.2.0; GCP remains the default for existing answers.
+
 ### Fixed
+
+- Format retraining flow names safely for longer generated project names.
+
+### Verification
+
+- All 34 PR checks passed, covering all twelve variants, Terraform validation,
+  container smoke/security checks and template update compatibility.
+- Generated cloud stacks still require account- and adapter-specific live verification.
 
 ## [1.1.0] - 2026-11-17
 
