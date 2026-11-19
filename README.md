@@ -19,10 +19,36 @@ uvx copier copy \
 ```
 
 Copier will prompt for the project name, repository slug, task type,
-Python version and author information.
+project tier, cloud provider (`gcp` or `aws`), Python version and author information.
 
 Use a tagged release for real projects. The `main` branch may contain
 changes intended for the next template release.
+
+## Cloud selection
+
+The next template revision adds an explicit `cloud_provider` choice, defaulting to
+`gcp` for existing Copier answers. Generate from a reviewed checkout to try it:
+
+```bash
+uv run copier copy --defaults --data cloud_provider=aws \
+  --data task_type=forecasting --data project_tier=end_to_end . ../my-aws-project
+```
+
+The CI matrix covers two task types, three tiers and two clouds (12 variants).
+The API tier stays local and does not provision cloud resources. Deployment adds
+only the selected provider's infrastructure and workflows. The AWS end-to-end tier
+adds Fargate training, shared registry/promotion, portable releases, service refresh,
+rollback and optional managed MLflow with RDS/S3. Project-specific adapters remain
+required; generation does not train a usable business model.
+
+Generic retraining uses project-produced evidence with timestamp freshness,
+cooldown and duplicate-observation guards. A project must supply monitoring signals
+and its own data/feature/training implementation. The verified forecasting demo is
+a reference implementation, not bundled training data or proof of every generated variant.
+
+Changing the provider of an existing deployed project is an infrastructure migration.
+Review Copier's diff and preserve the old Terraform state; do not switch providers
+and assume resources or datasets migrate automatically.
 
 ## Supported project types
 
@@ -42,7 +68,7 @@ Generated projects include:
 - Python package using a `src` layout
 - uv dependency management
 - environment-specific YAML configuration
-- local and Google Cloud Storage support
+- local, Google Cloud Storage and Amazon S3 support
 - immutable serving-release manifests
 - active-release pointers and rollback support
 - MLflow model loading

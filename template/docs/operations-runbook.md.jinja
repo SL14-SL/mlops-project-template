@@ -1,3 +1,30 @@
+{% if cloud_provider == 'aws' %}
+# AWS operations runbook
+
+Start with `gh run view --log-failed`. The lifecycle launcher forwards task logs;
+ECS service status alone does not prove application readiness.
+
+1. Select the configured AWS account and region; run `aws sts get-caller-identity`.
+2. Inspect ECS deployments, task exit codes and CloudWatch logs for the affected service.
+3. Check load-balancer target health and `/readyz`; confirm the expected release ID.
+4. For AWS authentication failures, inspect the OIDC audience and exact environment
+   subject, role permissions and organization SCPs. Refresh expired local sessions.
+5. For MLflow failures, check its task logs, RDS availability, token references and
+   health endpoint before changing the local UI proxy.
+
+Use `rollback-aws.yml` for a previously tested immutable API image. Review its plan
+before applying. It refuses unrelated infrastructure changes rather than guessing
+custom deployment settings. Preserve the original variables and resolve the plan first.
+{% if project_tier == 'end_to_end' %}
+Use `lifecycle-aws.yml` operation `rollback-model` for a previous serving release.
+See [AWS lifecycle](aws-lifecycle.md) and [managed MLflow](aws-mlflow.md).
+{% endif %}
+
+Keep Terraform state until all resources have been removed. Never force-unlock while
+another apply is active. Use the same bucket/key, account, region and variables for
+teardown. Review retained S3 versions, ECR images, RDS snapshots and Secrets Manager
+recovery windows. See [AWS deployment](aws-deployment.md).
+{% else %}
 # Operations runbook
 
 This runbook describes common operational procedures for
@@ -469,3 +496,4 @@ Verify that the webhook endpoint:
 
 Notification retries are not performed automatically. The lifecycle event
 remains available in the structured application logs.
+{% endif %}

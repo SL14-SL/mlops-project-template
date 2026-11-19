@@ -50,7 +50,7 @@ resource "aws_ecs_task_definition" "api" {
       environment = [
         {
           name  = "APP_ENV"
-          value = "prod"
+          value = var.environment
         },
         {
           name  = "CLOUD_PROVIDER"

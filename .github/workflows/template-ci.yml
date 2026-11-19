@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   generate-and-test:
-    name: Test ${{ matrix.task_type }} / ${{ matrix.project_tier }}
+    name: Test ${{ matrix.task_type }} / ${{ matrix.project_tier }} / ${{ matrix.cloud_provider }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -18,6 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         task_type: [classification, forecasting]
+        cloud_provider: [gcp, aws]
         project_tier: [api, deployment, end_to_end]
         include:
           - task_type: classification
@@ -51,6 +52,7 @@ jobs:
             --data project_slug="${{ matrix.project_slug }}" \
             --data task_type="${{ matrix.task_type }}" \
             --data project_tier="${{ matrix.project_tier }}" \
+            --data cloud_provider="${{ matrix.cloud_provider }}" \
             . \
             "generated/${{ matrix.project_slug }}"
 
@@ -60,6 +62,7 @@ jobs:
           "generated/${{ matrix.project_slug }}"
           "${{ matrix.project_tier }}"
           "$(echo '${{ matrix.project_slug }}' | tr '-' '_')"
+          "${{ matrix.cloud_provider }}"
 
       - name: Set up Terraform
         if: matrix.project_tier != 'api'
@@ -68,13 +71,23 @@ jobs:
           terraform_wrapper: false
 
       - name: Validate generated AWS infrastructure
-        if: matrix.project_tier != 'api'
+        if: matrix.project_tier != 'api' && matrix.cloud_provider == 'aws'
         working-directory: generated/${{ matrix.project_slug }}
         run: |
           terraform -chdir=infrastructure/terraform-aws fmt -check -recursive
           terraform -chdir=infrastructure/terraform-aws init \
             -backend=false -input=false -lockfile=readonly
           terraform -chdir=infrastructure/terraform-aws validate
+
+      - name: Validate generated GCP infrastructure
+        if: matrix.project_tier != 'api' && matrix.cloud_provider == 'gcp'
+        working-directory: generated/${{ matrix.project_slug }}
+        run: |
+          for module in infrastructure/terraform-bootstrap infrastructure/terraform; do
+            terraform -chdir="$module" fmt -check -recursive
+            terraform -chdir="$module" init -backend=false -input=false
+            terraform -chdir="$module" validate
+          done
 
       - name: Create local environment file
         working-directory: generated/${{ matrix.project_slug }}
@@ -178,7 +191,7 @@ jobs:
           exit-code: "1"
 
       - name: Build training image
-        if: matrix.project_tier == 'end_to_end'
+        if: matrix.project_tier == 'end_to_end' && matrix.cloud_provider == 'aws'
         working-directory: generated/${{ matrix.project_slug }}
         run: >-
           docker build
@@ -187,7 +200,7 @@ jobs:
           .
 
       - name: Verify training image entry points
-        if: matrix.project_tier == 'end_to_end'
+        if: matrix.project_tier == 'end_to_end' && matrix.cloud_provider == 'aws'
         run: |
           docker run --rm \
             "${{ matrix.project_slug }}-training:check"
@@ -198,8 +211,15 @@ jobs:
             -m "$(echo '${{ matrix.project_slug }}' | tr '-' '_').aws.fargate_train" \
             --help
 
+      - name: Verify lifecycle entry point from outside project root
+        if: matrix.project_tier == 'end_to_end' && matrix.cloud_provider == 'aws'
+        run: |
+          docker run --rm --workdir /tmp --entrypoint python \
+            "${{ matrix.project_slug }}-training:check" \
+            -m "$(echo '${{ matrix.project_slug }}' | tr '-' '_').aws.lifecycle" --help
+
       - name: Verify training image dependencies and user
-        if: matrix.project_tier == 'end_to_end'
+        if: matrix.project_tier == 'end_to_end' && matrix.cloud_provider == 'aws'
         run: |
           docker run --rm \
             --entrypoint python \
@@ -211,15 +231,36 @@ jobs:
             --format '{{.Config.User}}')" = "appuser"
 
       - name: Verify complete training inside container
-        if: matrix.project_tier == 'end_to_end'
+        if: matrix.project_tier == 'end_to_end' && matrix.cloud_provider == 'aws'
         working-directory: generated/${{ matrix.project_slug }}
         run: >-
           uv run --extra aws python
           scripts/training_container_smoke_test.py
           --image "${{ matrix.project_slug }}-training:check"
 
+      - name: Build and inspect MLflow image
+        if: matrix.project_tier == 'end_to_end' && matrix.cloud_provider == 'aws'
+        working-directory: generated/${{ matrix.project_slug }}
+        run: |
+          docker build -f Dockerfile.mlflow --tag "${{ matrix.project_slug }}-mlflow:check" .
+          docker run --rm --entrypoint python "${{ matrix.project_slug }}-mlflow:check" \
+            -c 'import boto3, mlflow, psycopg2; assert __import__("os").getuid() == 10001'
+
+      - name: Scan MLflow image
+        if: matrix.project_tier == 'end_to_end' && matrix.cloud_provider == 'aws'
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: "${{ matrix.project_slug }}-mlflow:check"
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          format: table
+          exit-code: "1"
+
       - name: Scan training image
-        if: matrix.project_tier == 'end_to_end'
+        if: matrix.project_tier == 'end_to_end' && matrix.cloud_provider == 'aws'
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image

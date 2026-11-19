@@ -37,3 +37,6 @@ output "training_security_group_id" {
 output "training_subnet_ids" {
   value = aws_subnet.public[*].id
 }
+output "training_image_uri" {
+  value = "${aws_ecr_repository.training.repository_url}@${var.training_image_digest}"
+}

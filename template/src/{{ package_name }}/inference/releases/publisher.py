@@ -56,9 +56,7 @@ def _build_source_references(
 
     return {
         name: build_artifact_reference(
-            relative_path=(
-                source.relative_path
-            ),
+            relative_path=(source.relative_path),
             artifact_uri=source.source_uri,
         )
         for name, source in sources.items()
@@ -79,20 +77,11 @@ def _cleanup_release(
     paths = build_release_paths(
         models_path=models_path,
         release_id=release_id,
-        artifact_filenames={
-            name: reference.path
-            for name, reference
-            in references.items()
-        },
+        artifact_filenames={name: reference.path for name, reference in references.items()},
     )
 
-    cleanup_paths = [
-        paths[name]
-        for name in references
-    ]
-    cleanup_paths.append(
-        paths["manifest"]
-    )
+    cleanup_paths = [paths[name] for name in references]
+    cleanup_paths.append(paths["manifest"])
 
     for path in reversed(cleanup_paths):
         try:
@@ -116,19 +105,13 @@ def _previous_release(
         release_id=release_id,
     )
 
-    if not file_exists(
-        paths["active_pointer"]
-    ):
+    if not file_exists(paths["active_pointer"]):
         return (
             ReleaseOperation.BOOTSTRAP,
             None,
         )
 
-    current_pointer = (
-        load_active_release_pointer(
-            models_path=models_path
-        )
-    )
+    current_pointer = load_active_release_pointer(models_path=models_path)
 
     return (
         ReleaseOperation.ACTIVATION,
@@ -152,18 +135,13 @@ def publish_serving_release(
     config_hash: str | None = None,
     git_commit: str | None = None,
     release_id: str | None = None,
+    validate_bundle: bool = False,
 ) -> PublishedServingRelease:
     """Validate, persist and activate one serving release."""
 
-    resolved_release_id = (
-        release_id or _new_release_id()
-    )
+    resolved_release_id = release_id or _new_release_id()
 
-    source_references = (
-        _build_source_references(
-            sources
-        )
-    )
+    source_references = _build_source_references(sources)
 
     manifest = build_serving_release_manifest(
         registration=registration,
@@ -178,54 +156,44 @@ def publish_serving_release(
         release_id=resolved_release_id,
     )
 
-    published_artifacts: (
-        PublishedServingArtifacts | None
-    ) = None
+    published_artifacts: PublishedServingArtifacts | None = None
 
     try:
-        published_artifacts = (
-            publish_serving_artifacts(
-                models_path=models_path,
-                release_id=(
-                    resolved_release_id
-                ),
-                sources=sources,
-            )
+        published_artifacts = publish_serving_artifacts(
+            models_path=models_path,
+            release_id=(resolved_release_id),
+            sources=sources,
         )
 
-        if (
-            published_artifacts.references
-            != source_references
-        ):
-            raise ValueError(
-                "Serving artifact contents changed "
-                "during release publication."
-            )
+        if published_artifacts.references != source_references:
+            raise ValueError("Serving artifact contents changed during release publication.")
 
         paths = build_release_paths(
             models_path=models_path,
-            release_id=(
-                resolved_release_id
-            ),
+            release_id=(resolved_release_id),
         )
         write_serving_manifest(
             paths["manifest"],
             manifest,
         )
 
-        persisted_manifest, release_root = (
-            load_release_manifest(
-                models_path=models_path,
-                release_id=(
-                    resolved_release_id
-                ),
-            )
+        persisted_manifest, release_root = load_release_manifest(
+            models_path=models_path,
+            release_id=(resolved_release_id),
         )
+        if validate_bundle:
+            from ..bundle_loader import build_serving_bundle
+            from ..model_loader import load_pyfunc_model
+
+            build_serving_bundle(
+                manifest=persisted_manifest,
+                release_root=release_root,
+                serving_alias="champion",
+                model_loader=load_pyfunc_model,
+            )
     except Exception:
         references = (
-            published_artifacts.references
-            if published_artifacts is not None
-            else source_references
+            published_artifacts.references if published_artifacts is not None else source_references
         )
         _cleanup_release(
             models_path=models_path,
@@ -234,20 +202,16 @@ def publish_serving_release(
         )
         raise
 
-    operation, previous_release_id = (
-        _previous_release(
-            models_path=models_path,
-            release_id=resolved_release_id,
-        )
+    operation, previous_release_id = _previous_release(
+        models_path=models_path,
+        release_id=resolved_release_id,
     )
     pointer = activate_release(
         models_path=models_path,
         release_id=resolved_release_id,
         operation=operation,
         expected_task_type=task_type,
-        previous_release_id=(
-            previous_release_id
-        ),
+        previous_release_id=(previous_release_id),
     )
 
     return PublishedServingRelease(

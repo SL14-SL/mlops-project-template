@@ -24,6 +24,13 @@ resource "aws_iam_role" "training_execution" {
 }
 
 data "aws_iam_policy_document" "training_execution" {
+  dynamic "statement" {
+    for_each = length(compact([local.mlflow_token_secret_arn, var.prefect_key_secret_arn])) > 0 ? [1] : []
+    content {
+      actions   = ["secretsmanager:GetSecretValue"]
+      resources = compact([local.mlflow_token_secret_arn, var.prefect_key_secret_arn])
+    }
+  }
   statement {
     sid       = "AuthenticateToEcr"
     actions   = ["ecr:GetAuthorizationToken"]
@@ -67,6 +74,17 @@ resource "aws_iam_role" "training_task" {
 
 data "aws_iam_policy_document" "training_task" {
   statement {
+    sid       = "LifecycleObjects"
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload"]
+    resources = [for prefix in ["data", "models", "artifacts", "mlflow"] : "${aws_s3_bucket.artifacts.arn}/${prefix}/*"]
+  }
+  statement {
+    sid       = "RefreshApi"
+    actions   = ["ecs:DescribeServices", "ecs:UpdateService"]
+    resources = ["arn:aws:ecs:${var.aws_region}:${var.aws_account_id}:service/${aws_ecs_cluster.main.name}/${local.name_prefix}-api"]
+  }
+
+  statement {
     sid       = "ReadBucketLocation"
     actions   = ["s3:GetBucketLocation"]
     resources = [aws_s3_bucket.artifacts.arn]
@@ -83,7 +101,7 @@ data "aws_iam_policy_document" "training_task" {
 
       values = [
         "training/input",
-        "training/input/*"
+        "training/input/*", "data", "data/*", "models", "models/*", "artifacts", "artifacts/*", "mlflow", "mlflow/*"
       ]
     }
   }
@@ -127,6 +145,7 @@ data "aws_iam_policy_document" "training_task" {
 
       values = [
         aws_s3_bucket.artifacts.arn,
+        "${aws_s3_bucket.artifacts.arn}/*",
         "${aws_s3_bucket.artifacts.arn}/training/input/*",
         "${aws_s3_bucket.artifacts.arn}/training/output/*"
       ]

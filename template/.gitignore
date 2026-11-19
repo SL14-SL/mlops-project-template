@@ -64,3 +64,8 @@ terraform.tfvars
 
 # Disposable container smoke-test fixtures
 .container-smoke/
+
+# Local deployment inputs and evidence
+*.auto.tfvars.json
+*.tfvars.json
+evidence/

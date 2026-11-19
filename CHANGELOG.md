@@ -8,6 +8,12 @@ The template follows Semantic Versioning.
 
 ### Added
 
+- Explicit AWS/GCP selection across both tasks and all three tiers; 12 CI variants.
+- AWS OIDC deployment/image rollback and Fargate lifecycle workflows.
+- Optional durable MLflow on Fargate, RDS PostgreSQL and S3 with authenticated gateway.
+- Portable model publication and shared evidence-driven retraining gates.
+- Offline regression coverage for logical clocks, cooldown, evidence validation and publication.
+
 ### Changed
 
 ### Fixed

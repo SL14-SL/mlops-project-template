@@ -47,19 +47,10 @@ resource "aws_ecs_task_definition" "training" {
       entryPoint = [
         "python",
         "-m",
-        "{{ package_name }}.aws.fargate_train"
+        "{{ package_name }}.aws.lifecycle"
       ]
 
-      command = [
-        "--input-uri",
-        "s3://${aws_s3_bucket.artifacts.id}/training/input",
-        "--output-uri",
-        "s3://${aws_s3_bucket.artifacts.id}/training/output",
-        "--config",
-        "configs/dev.yaml",
-        "--timeout-seconds",
-        "900"
-      ]
+      command = ["train"]
 
       mountPoints    = []
       portMappings   = []
@@ -74,6 +65,13 @@ resource "aws_ecs_task_definition" "training" {
       }
 
       environment = [
+        { name = "APP_ENV", value = var.environment },
+        { name = "S3_BUCKET_NAME", value = aws_s3_bucket.artifacts.id },
+        { name = "MLFLOW_TRACKING_URI", value = local.mlflow_tracking_uri },
+        { name = "PREFECT_API_URL", value = var.prefect_api_url },
+        { name = "AWS_ECS_CLUSTER", value = aws_ecs_cluster.main.arn },
+        { name = "AWS_API_SERVICE", value = var.api_serving_enabled ? "${local.name_prefix}-api" : "" },
+        { name = "AWS_API_ENDPOINT", value = var.api_serving_enabled ? aws_apigatewayv2_api.api[0].api_endpoint : "" },
         {
           name  = "AWS_REGION"
           value = var.aws_region
@@ -84,13 +82,18 @@ resource "aws_ecs_task_definition" "training" {
         },
         {
           name  = "CLOUD_PROVIDER"
-          value = "local"
+          value = "aws"
         },
         {
           name  = "MLFLOW_DISABLE_TELEMETRY"
           value = "true"
         }
       ]
+
+      secrets = concat(
+        local.mlflow_token_secret_arn != "" ? [{ name = "MLFLOW_TRACKING_TOKEN", valueFrom = local.mlflow_token_secret_arn }] : [],
+        var.prefect_key_secret_arn != "" ? [{ name = "PREFECT_API_KEY", valueFrom = var.prefect_key_secret_arn }] : []
+      )
 
       logConfiguration = {
         logDriver = "awslogs"
