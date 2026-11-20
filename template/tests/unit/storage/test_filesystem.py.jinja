@@ -166,6 +166,7 @@ def test_read_text_uses_gcs_filesystem(
     fake_filesystem.open.assert_called_once_with(
         "gs://example-bucket/example.txt",
         "r",
+        encoding="utf-8",
     )
 
 
@@ -189,6 +190,7 @@ def test_write_text_uses_gcs_filesystem(
     fake_filesystem.open.assert_called_once_with(
         "gs://example-bucket/example.txt",
         "w",
+        encoding="utf-8",
     )
     fake_file.write.assert_called_once_with("remote content")
 

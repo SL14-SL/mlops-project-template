@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from {{ package_name }}.configs.environment import (
     detect_environment,
     inject_runtime_env,
-    override_gcs_bucket_paths,
+    override_cloud_storage_paths,
     resolve_env_placeholders,
 )
 from {{ package_name }}.configs.paths import get_project_root
@@ -69,7 +69,7 @@ def load_config(
 
     config = _load_yaml(config_path)
     resolved_config = resolve_env_placeholders(config)
-    resolved_config = override_gcs_bucket_paths(resolved_config)
+    resolved_config = override_cloud_storage_paths(resolved_config)
     resolved_config.setdefault("environment", environment)
 
     inject_runtime_env(resolved_config)

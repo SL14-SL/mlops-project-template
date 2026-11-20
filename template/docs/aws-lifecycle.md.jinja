@@ -1,0 +1,66 @@
+# AWS model lifecycle
+
+This foundation supports `train`, `auto-retrain`, `refresh` and `rollback-model`
+through `lifecycle-aws.yml`. It uses the same training, evaluation, promotion and
+serving contracts as the local lifecycle. Implement
+`src/{{ package_name }}/pipeline/project_factory.py` before running training.
+The template does not include a dataset, a trained model or a simulated business clock.
+
+## Deploy and train
+
+Follow [AWS deployment](aws-deployment.md) first. In the GitHub environment, set
+`AWS_MANAGED_MLFLOW=true` for the managed stack. Deploy once with serving disabled,
+then upload your project data to the configured S3 paths and run:
+
+```bash
+gh workflow run lifecycle-aws.yml --ref main -f environment=dev -f operation=train
+```
+
+The launcher forwards CloudWatch messages while waiting for the Fargate exit code.
+Training registers a candidate, applies the shared evaluation/promotion policy and
+copies complete MLflow model artifacts into an immutable S3 serving release.
+Checksums and task-specific bundle validation run before pointer activation.
+If serving is active, a successful promotion refreshes the API service.
+A skipped promotion does not replace the active release.
+
+Enable API serving only after a valid release exists. The initial serving deployment
+is a separate `deploy-aws.yml` invocation with `enable_serving=true`.
+
+## Automatic retraining evidence
+
+Your project monitoring adapter must write JSON to
+`artifacts/lifecycle/retraining_signals.json` under the configured S3 artifacts root:
+
+```json
+{"observed_at":"2026-11-19T10:00:00+00:00","new_training_rows":750,
+ "performance_degraded":true,"feature_drift":false}
+```
+
+These signals must reflect real, validated project evidence. Ground truth collection,
+label delays, drift calculation and training-data ingestion belong to your adapters.
+The scheduler does not manufacture labels or infer which dataset to train.
+
+`monitoring.retraining` configures minimum rows, freshness, cooldown and scheduled
+interval. Future-dated/stale evidence and previously completed observations are skipped.
+The completion marker is written after the lifecycle and serving refresh succeed.
+`evaluated_at` can supply a timezone-aware logical clock for controlled replay; use
+consistent evidence timestamps and isolated storage when testing historical dates.
+Normal operation uses UTC wall time. This is not the Rossmann 95-day demo.
+
+Set the **repository** variable `AWS_RETRAINING_ENABLED=true` to opt into the scheduled
+workflow. Workflow concurrency serializes lifecycle/deployment operations per environment.
+Serialize any additional external schedulers too; the state marker is not a distributed lock.
+
+## Rollback and limitations
+
+`rollback-model` uses the previous release pointer and restores the MLflow champion
+through the shared rollback path. `rollback-aws.yml` rolls back an API **image digest**;
+it rejects plans that would alter unrelated infrastructure.
+Inspect the plan before applying. Never delete production data to resolve a failed rollout.
+
+Prefect can run a temporary server inside the task when no remote API URL is configured.
+That server is not a durable central orchestration service. Supply a hosted Prefect URL
+and a Secrets Manager key reference if you need persistent orchestration history.
+
+No AWS resources are created by generating a project or by the offline unit tests.
+See [managed MLflow](aws-mlflow.md) and [AWS deployment](aws-deployment.md) for costs and cleanup.

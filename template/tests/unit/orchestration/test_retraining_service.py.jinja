@@ -1,0 +1,97 @@
+import json
+from types import SimpleNamespace
+
+import pytest
+
+from {{ package_name }}.orchestration import retraining_service as service
+
+
+@pytest.fixture
+def context(tmp_path, monkeypatch):
+    config = {"paths": {"artifacts": str(tmp_path)}, "monitoring": {"retraining": {}}}
+    signal, state = service._paths(config)
+    evidence = {
+        "observed_at": "2026-11-19T10:00:00Z",
+        "new_training_rows": 600,
+        "performance_degraded": True,
+        "feature_drift": False,
+    }
+    service.write_text(signal, json.dumps(evidence))
+    calls = []
+    result = SimpleNamespace(
+        pipeline=SimpleNamespace(
+            pipeline=SimpleNamespace(training=SimpleNamespace(run_id="candidate"))
+        ),
+        serving_release=object(),
+    )
+    monkeypatch.setattr(service, "build_project_training_pipeline", lambda config: "adapter")
+    monkeypatch.setattr(
+        service, "run_prefect_model_lifecycle", lambda **kwargs: calls.append(kwargs) or result
+    )
+    return config, signal, state, evidence, calls
+
+
+def test_completed_observation_is_not_retrained_again(context):
+    config, _, state, _, calls = context
+    first = service.run_auto_retraining(config=config, evaluated_at="2026-11-19T11:00:00Z")
+    assert first["status"] == "retrained"
+    assert first["candidate_run_id"] == "candidate"
+    assert json.loads(service.read_text(state))["last_training_at"].startswith("2026-11-19T11")
+    second = service.run_auto_retraining(config=config, evaluated_at="2026-11-19T12:00:00Z")
+    assert second["status"] == "skipped"
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("clock", ["2026-11-18T10:00:00Z", "2026-11-22T10:00:00Z"])
+def test_future_and_stale_evidence_skip_training(context, clock):
+    config, _, _, _, calls = context
+    assert service.run_auto_retraining(config=config, evaluated_at=clock)["status"] == "skipped"
+    assert calls == []
+
+
+def test_logical_clock_controls_cooldown(context):
+    config, signal, _, evidence, calls = context
+    service.record_training_completion(config=config, evaluated_at="2026-11-12T12:00:00Z")
+    assert (
+        service.run_auto_retraining(config=config, evaluated_at="2026-11-19T11:00:00Z")["status"]
+        == "skipped"
+    )
+    evidence["observed_at"] = "2026-11-19T13:00:00Z"
+    service.write_text(signal, json.dumps(evidence))
+    assert (
+        service.run_auto_retraining(config=config, evaluated_at="2026-11-19T13:00:00Z")["status"]
+        == "retrained"
+    )
+    assert len(calls) == 1
+
+
+def test_failed_refresh_does_not_mark_observation_completed(context):
+    config, _, state, _, _ = context
+
+    def fail(result):
+        raise RuntimeError("refresh failed")
+
+    with pytest.raises(RuntimeError, match="refresh failed"):
+        service.run_auto_retraining(
+            config=config, evaluated_at="2026-11-19T11:00:00Z", after_lifecycle=fail
+        )
+    assert not service.file_exists(state)
+
+
+@pytest.mark.parametrize("key,value", [("new_training_rows", True), ("feature_drift", "true")])
+def test_invalid_evidence_cannot_launch_training(context, key, value):
+    config, signal, _, evidence, calls = context
+    evidence[key] = value
+    service.write_text(signal, json.dumps(evidence))
+    with pytest.raises(ValueError):
+        service.run_auto_retraining(config=config, evaluated_at="2026-11-19T11:00:00Z")
+    assert calls == []
+
+
+@pytest.mark.parametrize("value", [-1, float("nan"), float("inf"), True])
+def test_invalid_policy_settings_rejected(context, value):
+    config, _, _, _, calls = context
+    config["monitoring"]["retraining"]["maximum_signal_age_hours"] = value
+    with pytest.raises(ValueError):
+        service.run_auto_retraining(config=config, evaluated_at="2026-11-19T11:00:00Z")
+    assert calls == []

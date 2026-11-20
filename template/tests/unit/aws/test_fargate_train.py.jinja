@@ -1,0 +1,158 @@
+import json
+import subprocess
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+
+from {{ package_name }}.aws import fargate_train
+
+
+@pytest.fixture
+def transport(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    config = tmp_path / "training.yaml"
+    config.write_text("paths: {}\n", encoding="utf-8")
+
+    client = MagicMock()
+    client.get_paginator.return_value.paginate.return_value = [
+        {"Contents": [{"Key": "training/input/records.csv"}]},
+    ]
+
+    def download(bucket: str, key: str, destination: str) -> None:
+        assert bucket == "example-bucket"
+        assert key == "training/input/records.csv"
+        Path(destination).write_text("feature,target\n1,2\n", encoding="utf-8")
+
+    client.download_file.side_effect = download
+
+    def train(command, *, check: bool, timeout: int) -> None:
+        assert check is True
+        assert timeout == 900
+        model = Path(command[command.index("--model-dir") + 1])
+        output = Path(command[command.index("--output-dir") + 1])
+        (model / "model").mkdir(parents=True)
+        output.mkdir()
+        (model / "model/MLmodel").write_text("fixture", encoding="utf-8")
+        (model / "candidate.json").write_text(
+            json.dumps({
+                "schema_version": 1,
+                "run_id": "fixture-run",
+                "promoted": False,
+            }),
+            encoding="utf-8",
+        )
+        (output / "evaluation.json").write_text(
+            json.dumps({
+                "schema_version": 1,
+                "run_id": "fixture-run",
+                "evaluation_approved": True,
+                "promoted": False,
+            }),
+            encoding="utf-8",
+        )
+
+    process = MagicMock(side_effect=train)
+    monkeypatch.setattr(fargate_train.subprocess, "run", process)
+    return client, config, process
+
+
+def execute(transport):
+    client, config, _ = transport
+    return fargate_train.run_fargate_training(
+        input_uri="s3://example-bucket/training/input",
+        output_uri="s3://example-bucket/training/output",
+        config_path=config,
+        s3_client=client,
+    )
+
+
+def test_uploads_exports_before_completion_marker(transport) -> None:
+    client, _, process = transport
+
+    result = execute(transport)
+
+    process.assert_called_once()
+    assert result["status"] == "completed"
+    assert result["run_id"] == "fixture-run"
+    assert result["promoted"] is False
+    assert len(result["files"]) == 3
+    assert all(len(item["sha256"]) == 64 for item in result["files"])
+    assert client.upload_file.call_count == 3
+    assert client.method_calls[-1][0] == "put_object"
+    arguments = client.put_object.call_args.kwargs
+    assert arguments["Key"].endswith("/completion.json")
+    assert arguments["IfNoneMatch"] == "*"
+    assert json.loads(arguments["Body"]) == result
+    assert all(
+        "/work/" not in call.args[2]
+        for call in client.upload_file.call_args_list
+    )
+
+
+def test_failed_upload_does_not_publish_completion(transport) -> None:
+    client, _, _ = transport
+    client.upload_file.side_effect = RuntimeError("upload failed")
+
+    with pytest.raises(RuntimeError, match="upload failed"):
+        execute(transport)
+
+    client.put_object.assert_not_called()
+
+
+def test_timeout_does_not_upload_results(transport) -> None:
+    client, _, process = transport
+    process.side_effect = subprocess.TimeoutExpired("training", 900)
+
+    with pytest.raises(subprocess.TimeoutExpired):
+        execute(transport)
+
+    client.upload_file.assert_not_called()
+    client.put_object.assert_not_called()
+
+
+def test_empty_input_does_not_start_training(transport) -> None:
+    client, _, process = transport
+    client.get_paginator.return_value.paginate.return_value = [{}]
+
+    with pytest.raises(FileNotFoundError, match="No training input"):
+        execute(transport)
+
+    process.assert_not_called()
+    client.put_object.assert_not_called()
+
+
+def test_rejects_input_path_traversal(transport) -> None:
+    client, _, process = transport
+    client.get_paginator.return_value.paginate.return_value = [
+        {"Contents": [{"Key": "training/input/../escape.csv"}]},
+    ]
+
+    with pytest.raises(ValueError, match="Unsafe relative"):
+        execute(transport)
+
+    client.download_file.assert_not_called()
+    process.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "uri",
+    ["https://example.com/input", "s3://bucket", "s3://bucket/input?query=1"],
+)
+def test_rejects_invalid_s3_prefix(uri: str) -> None:
+    with pytest.raises(ValueError):
+        fargate_train.parse_s3_prefix(uri)
+
+
+def test_rejects_overlapping_input_and_output(transport) -> None:
+    client, config, process = transport
+
+    with pytest.raises(ValueError, match="must not overlap"):
+        fargate_train.run_fargate_training(
+            input_uri="s3://example-bucket/training",
+            output_uri="s3://example-bucket/training/output",
+            config_path=config,
+            s3_client=client,
+        )
+
+    process.assert_not_called()
+    client.download_file.assert_not_called()

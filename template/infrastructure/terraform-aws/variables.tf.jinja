@@ -1,0 +1,61 @@
+variable "aws_account_id" {
+  description = "Expected AWS account ID."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[0-9]{12}$", var.aws_account_id))
+    error_message = "aws_account_id must contain exactly 12 digits."
+  }
+}
+
+variable "aws_region" {
+  description = "AWS region used by this deployment."
+  type        = string
+  default     = "eu-north-1"
+}
+
+variable "project_slug" {
+  description = "Project identifier used in AWS resource names."
+  type        = string
+  default     = "{{ project_slug }}"
+
+  validation {
+    condition = (
+      length(var.project_slug) >= 3 &&
+      length(var.project_slug) <= 30 &&
+      can(regex("^[a-z][a-z0-9-]*[a-z0-9]$", var.project_slug))
+    )
+    error_message = "project_slug must contain 3–30 lowercase letters, digits or hyphens; start with a letter and end with a letter or digit."
+  }
+}
+
+variable "environment" {
+  description = "Deployment environment."
+  type        = string
+  default     = "dev"
+
+  validation {
+    condition     = contains(["dev", "staging", "prod"], var.environment)
+    error_message = "environment must be dev, staging or prod."
+  }
+}
+
+variable "api_serving_enabled" {
+  description = "Deploy the API service, load balancer and gateway."
+  type        = bool
+  default     = false
+}
+
+variable "api_image_digest" {
+  description = "Digest of the AWS-enabled API image uploaded to this project's ECR repository."
+  type        = string
+  default     = ""
+
+  validation {
+    condition = (
+      var.api_image_digest == "" ||
+      can(regex("^sha256:[a-f0-9]{64}$", var.api_image_digest))
+    )
+    error_message = "api_image_digest must be empty or a sha256 digest."
+  }
+}

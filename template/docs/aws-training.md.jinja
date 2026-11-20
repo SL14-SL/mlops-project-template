@@ -1,0 +1,60 @@
+# AWS training
+
+The AWS end-to-end tier runs the shared model lifecycle on Fargate. Implement the
+project-specific adapters in `src/{{ package_name }}/pipeline/project_factory.py`.
+Classification and forecasting use the same contracts with task-specific serving bundles.
+The default adapter deliberately raises `NotImplementedError` until implemented.
+
+## Shared cloud lifecycle
+
+Follow [AWS deployment](aws-deployment.md), then [AWS lifecycle](aws-lifecycle.md).
+The task definition now starts `{{ package_name }}.aws.lifecycle` with command `train`.
+It reads the normal S3 project paths and uses a shared remote MLflow registry.
+Do not assume that uploading data under an old isolated-job prefix changes those paths.
+
+```bash
+gh workflow run lifecycle-aws.yml --ref main -f environment=dev -f operation=train
+```
+
+Review logs, evaluation, the promotion decision and the active serving release.
+A successful task can legitimately skip promotion if the challenger fails the policy.
+When serving is enabled, promotion refreshes ECS and verifies the loaded release.
+Image rollbacks and model rollbacks are separate operations.
+
+## Optional isolated training utility
+
+The earlier isolated training utility remains available for adapter development:
+
+```bash
+uv run --extra aws python -m {{ package_name }}.aws.train --help
+uv run --extra aws python -m {{ package_name }}.aws.fargate_train --help
+```
+
+`aws.train` runs locally with explicit input/work/model/output directories and a
+job-local tracking backend. It exports a reloadable candidate; it does not promote
+the shared champion. `aws.fargate_train` wraps that utility with S3 transport when
+explicitly invoked. It is no longer the default ECS task entry point.
+
+Build and test the isolated adapter image after implementing the adapters:
+
+```bash
+uv sync --extra aws
+docker build -f Dockerfile.training -t {{ project_slug }}-training:local .
+uv run --extra aws python scripts/training_container_smoke_test.py \
+  --image {{ project_slug }}-training:local
+```
+
+The container smoke fixture supplies synthetic adapters; it does not verify your
+production dataset or project training implementation. SageMaker request helpers
+remain optional and cloud execution has not been verified.
+
+## Verification scope and cleanup
+
+The forecasting reference project was verified on AWS, including registry,
+persistence and a technical identical-weight release switch/rollback. Generated
+projects still require account-specific IAM, KMS, networking and adapter verification.
+Offline tests cannot establish cloud deployment success.
+
+Use [AWS deployment](aws-deployment.md) for cleanup. Preserve models/metadata that
+matter before removing the stack, and check retained snapshots, S3 versions, ECR,
+secret recovery windows and the separate Terraform state bucket.

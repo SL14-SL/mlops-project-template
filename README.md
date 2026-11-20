@@ -13,16 +13,43 @@ Generate a new project directly from the latest reviewed template release:
 ```bash
 uvx copier copy \
   --trust \
-  --vcs-ref v0.4.2 \
+  --vcs-ref v1.2.0 \
   https://github.com/SL14-SL/mlops-project-template.git \
   my-mlops-project
 ```
 
 Copier will prompt for the project name, repository slug, task type,
-Python version and author information.
+project tier, cloud provider (`gcp` or `aws`), Python version and author information.
 
 Use a tagged release for real projects. The `main` branch may contain
 changes intended for the next template release.
+
+## Cloud selection
+
+Version 1.2.0 includes an explicit `cloud_provider` choice, defaulting to
+`gcp` for existing Copier answers. Generate an AWS project from the tagged release:
+
+```bash
+uvx copier copy --defaults --vcs-ref v1.2.0 --data cloud_provider=aws \
+  --data task_type=forecasting --data project_tier=end_to_end \
+  https://github.com/SL14-SL/mlops-project-template.git my-aws-project
+```
+
+The CI matrix covers two task types, three tiers and two clouds (12 variants).
+The API tier stays local and does not provision cloud resources. Deployment adds
+only the selected provider's infrastructure and workflows. The AWS end-to-end tier
+adds Fargate training, shared registry/promotion, portable releases, service refresh,
+rollback and optional managed MLflow with RDS/S3. Project-specific adapters remain
+required; generation does not train a usable business model.
+
+Generic retraining uses project-produced evidence with timestamp freshness,
+cooldown and duplicate-observation guards. A project must supply monitoring signals
+and its own data/feature/training implementation. The verified forecasting demo is
+a reference implementation, not bundled training data or proof of every generated variant.
+
+Changing the provider of an existing deployed project is an infrastructure migration.
+Review Copier's diff and preserve the old Terraform state; do not switch providers
+and assume resources or datasets migrate automatically.
 
 ## Supported project types
 
@@ -42,7 +69,7 @@ Generated projects include:
 - Python package using a `src` layout
 - uv dependency management
 - environment-specific YAML configuration
-- local and Google Cloud Storage support
+- local, Google Cloud Storage and Amazon S3 support
 - immutable serving-release manifests
 - active-release pointers and rollback support
 - MLflow model loading
@@ -100,6 +127,32 @@ generating a project:
 - retraining rules
 - cloud resource identifiers
 - project documentation
+
+## Optional AWS support
+
+Generated projects support S3 storage and optional AWS-enabled API images.
+Deployment and end-to-end tiers also include Terraform configuration for
+ECS/Fargate serving through an API Gateway HTTPS endpoint.
+
+AWS-enabled containers are tested in CI. The generated AWS infrastructure
+is validated with Terraform but has not been verified end to end on AWS.
+The end-to-end tier additionally provides isolated training, Fargate S3
+transport, and SageMaker request generation. Fargate training was verified on AWS with a generated forecasting project
+and synthetic data. SageMaker execution and the generated API deployment
+remain unverified.
+
+See the [generated AWS deployment guide](template/docs/aws-deployment.md.jinja).
+See the [Fargate training verification](docs/aws-training-verification.md)
+for test scope, screenshots and cleanup evidence.
+
+## Stability and compatibility
+
+Starting with version 1.0.0, documented public interfaces follow the
+[stability and compatibility policy](STABILITY.md).
+
+AWS Terraform deployment remains experimental. Generated AWS-enabled
+containers are tested, while the generated infrastructure has not been
+verified end to end on AWS.
 
 ## Requirements
 

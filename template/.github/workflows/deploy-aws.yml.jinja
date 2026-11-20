@@ -1,0 +1,151 @@
+{% raw %}
+name: Deploy to AWS
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [dev, staging, prod]
+        default: dev
+      enable_serving:
+        description: Enable API only after publishing a complete serving release
+        type: boolean
+        default: false
+      apply_changes:
+        description: Build images and apply infrastructure changes
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: aws-${{ inputs.environment }}
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment: ${{ inputs.environment }}
+    env:
+      TF_VAR_aws_account_id: ${{ vars.AWS_ACCOUNT_ID }}
+      TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+      TF_VAR_environment: ${{ inputs.environment }}
+      TF_VAR_api_serving_enabled: ${{ inputs.enable_serving }}
+      TF_VAR_api_image_digest: ${{ vars.AWS_API_IMAGE_DIGEST || '' }}
+{% endraw %}
+{% if project_tier == "end_to_end" %}
+{% raw %}
+      TF_VAR_training_task_enabled: 'true'
+      TF_VAR_training_image_digest: ${{ vars.AWS_TRAINING_IMAGE_DIGEST || '' }}
+      TF_VAR_mlflow_managed_enabled: ${{ vars.AWS_MANAGED_MLFLOW || 'true' }}
+      TF_VAR_mlflow_image_digest: ${{ vars.AWS_MLFLOW_IMAGE_DIGEST || '' }}
+      TF_VAR_mlflow_database_deletion_protection: 'true'
+      TF_VAR_mlflow_tracking_uri: ${{ vars.MLFLOW_TRACKING_URI || '' }}
+      TF_VAR_mlflow_token_secret_arn: ${{ vars.MLFLOW_TOKEN_SECRET_ARN || '' }}
+      TF_VAR_prefect_api_url: ${{ vars.PREFECT_API_URL || '' }}
+      TF_VAR_prefect_key_secret_arn: ${{ vars.PREFECT_KEY_SECRET_ARN || '' }}
+{% endraw %}
+{% endif %}
+{% raw %}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/aws-context
+        with:
+          role_arn: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          state_bucket: ${{ vars.AWS_TF_STATE_BUCKET }}
+          environment: ${{ inputs.environment }}
+      - name: Validate Terraform
+        run: |
+          terraform -chdir=infrastructure/terraform-aws fmt -check
+          terraform -chdir=infrastructure/terraform-aws validate
+      - name: Resolve image digests
+        run: |
+          python - <<'PYCODE'
+          import json, os, subprocess
+          result = subprocess.check_output(['terraform', '-chdir=infrastructure/terraform-aws', 'output', '-json'])
+          outputs = json.loads(result)
+          pairs = {'TF_VAR_api_image_digest': 'api_image_uri'}
+          if 'TF_VAR_training_image_digest' in os.environ:
+              pairs.update(TF_VAR_training_image_digest='training_image_uri', TF_VAR_mlflow_image_digest='mlflow_image_uri')
+          with open(os.environ['GITHUB_ENV'], 'a') as file:
+              for variable, output in pairs.items():
+                  value = os.environ.get(variable) or (outputs.get(output, {}).get('value') or '').rpartition('@')[2] or ('sha256:' + '0' * 64)
+                  file.write(f'{variable}={value}\n')
+          PYCODE
+      - name: Create repositories and API secret
+        if: inputs.apply_changes
+        run: |
+          set -euo pipefail
+          targets=(-target=aws_ecr_repository.api -target=aws_secretsmanager_secret.api_key)
+{% endraw %}
+{% if project_tier == "end_to_end" %}
+{% raw %}
+          targets+=(-target=aws_ecr_repository.training -target=aws_ecr_repository.mlflow)
+{% endraw %}
+{% endif %}
+{% raw %}
+          terraform -chdir=infrastructure/terraform-aws apply -input=false -auto-approve "${targets[@]}"
+      - name: Initialize API key
+        if: inputs.apply_changes
+        run: python scripts/ensure_api_key.py
+      - name: Build immutable API image
+        if: inputs.apply_changes
+        run: |
+          set -euo pipefail
+          repository=$(terraform -chdir=infrastructure/terraform-aws output -raw api_repository_url)
+          registry="${repository%%/*}"
+          aws ecr get-login-password | docker login --username AWS --password-stdin "$registry"
+          tag="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker build --build-arg INSTALL_AWS=true -t "$repository:$tag" .
+          docker push "$repository:$tag"
+          digest=$(aws ecr describe-images --repository-name "${repository#*/}" --image-ids "imageTag=$tag" --query 'imageDetails[0].imageDigest' --output text)
+          echo "TF_VAR_api_image_digest=$digest" >> "$GITHUB_ENV"
+{% endraw %}
+{% if project_tier == "end_to_end" %}
+{% raw %}
+      - name: Build immutable training and MLflow images
+        if: inputs.apply_changes
+        run: |
+          set -euo pipefail
+          for component in training mlflow; do
+            if [ "$component" = mlflow ] && [ "$TF_VAR_mlflow_managed_enabled" != true ]; then continue; fi
+            repository=$(terraform -chdir=infrastructure/terraform-aws output -raw "${component}_repository_url")
+            registry="${repository%%/*}"
+            aws ecr get-login-password | docker login --username AWS --password-stdin "$registry"
+            tag="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            docker build -f "Dockerfile.$component" -t "$repository:$tag" .
+            docker push "$repository:$tag"
+            digest=$(aws ecr describe-images --repository-name "${repository#*/}" --image-ids "imageTag=$tag" --query 'imageDetails[0].imageDigest' --output text)
+            echo "TF_VAR_${component}_image_digest=$digest" >> "$GITHUB_ENV"
+          done
+{% endraw %}
+{% endif %}
+{% raw %}
+      - name: Plan deployment
+        run: terraform -chdir=infrastructure/terraform-aws plan -input=false -out=deployment.tfplan
+      - name: Apply deployment
+        if: inputs.apply_changes
+        run: terraform -chdir=infrastructure/terraform-aws apply -input=false -auto-approve deployment.tfplan
+      - name: Verify serving endpoint
+        if: inputs.apply_changes && inputs.enable_serving
+        run: |
+          set -euo pipefail
+          endpoint=$(terraform -chdir=infrastructure/terraform-aws output -raw api_endpoint)
+          curl --fail-with-body --retry 8 --retry-all-errors --retry-delay 10 "$endpoint/readyz"
+          status=$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{}' "$endpoint/predict")
+          test "$status" = 401
+{% endraw %}
+{% if project_tier == "end_to_end" %}
+{% raw %}
+      - uses: astral-sh/setup-uv@v7
+        if: inputs.apply_changes && env.TF_VAR_mlflow_managed_enabled == 'true'
+        with:
+          version: '0.12.13'
+      - name: Verify managed MLflow
+        if: inputs.apply_changes && env.TF_VAR_mlflow_managed_enabled == 'true'
+        run: |
+          uv run --locked --extra aws python scripts/ensure_mlflow_token.py
+          uv run --locked --extra aws python scripts/smoke_mlflow_aws.py
+{% endraw %}
+{% endif %}

@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   generate-and-test:
-    name: Test ${{ matrix.task_type }} / ${{ matrix.project_tier }}
+    name: Test ${{ matrix.task_type }} / ${{ matrix.project_tier }} / ${{ matrix.cloud_provider }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -18,6 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         task_type: [classification, forecasting]
+        cloud_provider: [gcp, aws]
         project_tier: [api, deployment, end_to_end]
         include:
           - task_type: classification
@@ -51,6 +52,7 @@ jobs:
             --data project_slug="${{ matrix.project_slug }}" \
             --data task_type="${{ matrix.task_type }}" \
             --data project_tier="${{ matrix.project_tier }}" \
+            --data cloud_provider="${{ matrix.cloud_provider }}" \
             . \
             "generated/${{ matrix.project_slug }}"
 
@@ -60,6 +62,32 @@ jobs:
           "generated/${{ matrix.project_slug }}"
           "${{ matrix.project_tier }}"
           "$(echo '${{ matrix.project_slug }}' | tr '-' '_')"
+          "${{ matrix.cloud_provider }}"
+
+      - name: Set up Terraform
+        if: matrix.project_tier != 'api'
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - name: Validate generated AWS infrastructure
+        if: matrix.project_tier != 'api' && matrix.cloud_provider == 'aws'
+        working-directory: generated/${{ matrix.project_slug }}
+        run: |
+          terraform -chdir=infrastructure/terraform-aws fmt -check -recursive
+          terraform -chdir=infrastructure/terraform-aws init \
+            -backend=false -input=false -lockfile=readonly
+          terraform -chdir=infrastructure/terraform-aws validate
+
+      - name: Validate generated GCP infrastructure
+        if: matrix.project_tier != 'api' && matrix.cloud_provider == 'gcp'
+        working-directory: generated/${{ matrix.project_slug }}
+        run: |
+          for module in infrastructure/terraform-bootstrap infrastructure/terraform; do
+            terraform -chdir="$module" fmt -check -recursive
+            terraform -chdir="$module" init -backend=false -input=false
+            terraform -chdir="$module" validate
+          done
 
       - name: Create local environment file
         working-directory: generated/${{ matrix.project_slug }}
@@ -72,6 +100,10 @@ jobs:
       - name: Run generated project checks
         working-directory: generated/${{ matrix.project_slug }}
         run: make check
+
+      - name: Test generated project with AWS dependencies
+        working-directory: generated/${{ matrix.project_slug }}
+        run: uv run --extra aws pytest -q
 
       - name: Validate Compose configuration
         working-directory: generated/${{ matrix.project_slug }}
@@ -116,6 +148,123 @@ jobs:
         with:
           scan-type: image
           image-ref: "${{ matrix.project_slug }}-api:local"
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          format: table
+          exit-code: "1"
+
+      - name: Build AWS API image
+        working-directory: generated/${{ matrix.project_slug }}
+        env:
+          INSTALL_AWS: "true"
+          IMAGE_TAG: aws-check
+        run: docker compose build api
+
+      - name: Verify AWS dependencies in API image
+        run: >-
+          docker run --rm
+          --entrypoint python
+          "${{ matrix.project_slug }}-api:aws-check"
+          -c 'import boto3, s3fs; print("AWS dependencies available")'
+
+      - name: Verify predictions in AWS API image
+        working-directory: generated/${{ matrix.project_slug }}
+        env:
+          INSTALL_AWS: "true"
+          IMAGE_TAG: aws-check
+        run: >-
+          uv run --extra aws python
+          scripts/container_smoke_test.py --skip-build
+
+      - name: Scan AWS API image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: "${{ matrix.project_slug }}-api:aws-check"
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          format: table
+          exit-code: "1"
+
+      - name: Build training image
+        if: matrix.project_tier == 'end_to_end' && matrix.cloud_provider == 'aws'
+        working-directory: generated/${{ matrix.project_slug }}
+        run: >-
+          docker build
+          -f Dockerfile.training
+          --tag "${{ matrix.project_slug }}-training:check"
+          .
+
+      - name: Verify training image entry points
+        if: matrix.project_tier == 'end_to_end' && matrix.cloud_provider == 'aws'
+        run: |
+          docker run --rm \
+            "${{ matrix.project_slug }}-training:check"
+
+          docker run --rm \
+            --entrypoint python \
+            "${{ matrix.project_slug }}-training:check" \
+            -m "$(echo '${{ matrix.project_slug }}' | tr '-' '_').aws.fargate_train" \
+            --help
+
+      - name: Verify lifecycle entry point from outside project root
+        if: matrix.project_tier == 'end_to_end' && matrix.cloud_provider == 'aws'
+        run: |
+          docker run --rm --workdir /tmp --entrypoint python \
+            "${{ matrix.project_slug }}-training:check" \
+            -m "$(echo '${{ matrix.project_slug }}' | tr '-' '_').aws.lifecycle" --help
+
+      - name: Verify training image dependencies and user
+        if: matrix.project_tier == 'end_to_end' && matrix.cloud_provider == 'aws'
+        run: |
+          docker run --rm \
+            --entrypoint python \
+            "${{ matrix.project_slug }}-training:check" \
+            -c 'import boto3, s3fs, mlflow; print("Training dependencies available")'
+
+          test "$(docker image inspect \
+            "${{ matrix.project_slug }}-training:check" \
+            --format '{{.Config.User}}')" = "appuser"
+
+      - name: Verify complete training inside container
+        if: matrix.project_tier == 'end_to_end' && matrix.cloud_provider == 'aws'
+        working-directory: generated/${{ matrix.project_slug }}
+        run: >-
+          uv run --extra aws python
+          scripts/training_container_smoke_test.py
+          --image "${{ matrix.project_slug }}-training:check"
+
+      - name: Build and inspect MLflow image
+        if: matrix.project_tier == 'end_to_end' && matrix.cloud_provider == 'aws'
+        working-directory: generated/${{ matrix.project_slug }}
+        run: |
+          docker build -f Dockerfile.mlflow --tag "${{ matrix.project_slug }}-mlflow:check" .
+          docker run --rm --entrypoint python "${{ matrix.project_slug }}-mlflow:check" \
+            -c 'import boto3, mlflow, psycopg2; assert __import__("os").getuid() == 10001'
+
+      - name: Scan MLflow image
+        if: matrix.project_tier == 'end_to_end' && matrix.cloud_provider == 'aws'
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: "${{ matrix.project_slug }}-mlflow:check"
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          format: table
+          exit-code: "1"
+
+      - name: Scan training image
+        if: matrix.project_tier == 'end_to_end' && matrix.cloud_provider == 'aws'
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: "${{ matrix.project_slug }}-training:check"
           scanners: vuln
           severity: HIGH,CRITICAL
           ignore-unfixed: true
@@ -224,3 +373,86 @@ jobs:
           --profile monitoring
           config
           --quiet
+
+  customized-template-update:
+    name: Update customized ${{ matrix.task_type }} project
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        task_type: [classification, forecasting]
+
+    steps:
+      - name: Check out template repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.12.13"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Synchronize template dependencies
+        run: uv sync --locked
+
+      - name: Generate baseline project
+        run: |
+          uv run copier copy --defaults \
+            --vcs-ref v0.6.2 \
+            --data project_name="Customized Update Check" \
+            --data project_slug=customized-update-check \
+            --data task_type="${{ matrix.task_type }}" \
+            --data project_tier=end_to_end \
+            . \
+            generated/customized-update-check
+
+      - name: Add project-owned adapters and tests
+        run: >-
+          uv run python scripts/add_update_compatibility_fixture.py
+          generated/customized-update-check
+          customized_update_check
+
+      - name: Verify adapters before update
+        working-directory: generated/customized-update-check
+        run: |
+          uv run ruff check src/customized_update_check/project_extension.py \
+            tests/unit/test_project_extension.py
+          uv run pytest -q tests/unit/test_project_extension.py
+
+      - name: Commit customized baseline
+        working-directory: generated/customized-update-check
+        run: |
+          git init
+          git config user.name "Template CI"
+          git config user.email "template-ci@example.invalid"
+          git add .
+          git commit -m "test: prepare customized v0.6.2 project"
+
+      - name: Update customized project
+        run: >-
+          uv run copier update
+          --defaults
+          --vcs-ref HEAD
+          generated/customized-update-check
+
+      - name: Verify project-owned files are preserved
+        working-directory: generated/customized-update-check
+        run: |
+          test -f src/customized_update_check/project_extension.py
+          test -f tests/unit/test_project_extension.py
+          git diff --exit-code HEAD -- \
+            src/customized_update_check/project_extension.py \
+            tests/unit/test_project_extension.py
+
+      - name: Verify adapters after update
+        working-directory: generated/customized-update-check
+        run: |
+          uv run --extra aws ruff check \
+            src/customized_update_check/project_extension.py \
+            tests/unit/test_project_extension.py
+          uv run --extra aws pytest -q tests/unit/test_project_extension.py

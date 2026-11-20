@@ -1,0 +1,144 @@
+import io
+import json
+from unittest.mock import MagicMock
+
+import pytest
+
+from {{ package_name }}.inference.releases import pointer
+
+botocore_exceptions = pytest.importorskip("botocore.exceptions")
+ClientError = botocore_exceptions.ClientError
+
+MODELS_PATH = "s3://example-bucket/models"
+TIMESTAMP = "2026-11-16T10:00:00+00:00"
+
+
+def s3_error(code: str, status: int, operation: str) -> Exception:
+    return ClientError(
+        {
+            "Error": {"Code": code, "Message": "Simulated S3 error"},
+            "ResponseMetadata": {"HTTPStatusCode": status},
+        },
+        operation,
+    )
+
+
+@pytest.fixture
+def client(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    fake = MagicMock()
+    fake.get_object.side_effect = s3_error("NoSuchKey", 404, "GetObject")
+    monkeypatch.setattr(pointer, "_s3_client", lambda: fake)
+    monkeypatch.setattr(pointer, "file_exists", lambda path: True)
+    return fake
+
+
+def activate() -> pointer.ActiveReleasePointer:
+    return pointer.activate_release_pointer(
+        models_path=MODELS_PATH,
+        release_id="release-new",
+        updated_at_utc=TIMESTAMP,
+    )
+
+
+def test_first_activation_requires_absent_pointer(client: MagicMock) -> None:
+    result = activate()
+
+    arguments = client.put_object.call_args.kwargs
+    assert arguments["Bucket"] == "example-bucket"
+    assert arguments["Key"] == pointer.active_pointer_path(MODELS_PATH).partition(
+        "example-bucket/"
+    )[2]
+    assert arguments["IfNoneMatch"] == "*"
+    assert "IfMatch" not in arguments
+    assert arguments["ContentType"] == "application/json"
+    assert json.loads(arguments["Body"]) == result.to_dict()
+    assert result.previous_release_id is None
+    client.put_object.assert_called_once()
+
+
+def test_existing_pointer_requires_matching_etag(client: MagicMock) -> None:
+    previous = pointer.ActiveReleasePointer(
+        schema_version=1,
+        release_id="release-old",
+        previous_release_id=None,
+        operation=pointer.ReleaseOperation.ACTIVATION,
+        updated_at_utc=TIMESTAMP,
+    )
+    body = io.BytesIO(json.dumps(previous.to_dict()).encode())
+    client.get_object.side_effect = None
+    client.get_object.return_value = {
+        "ETag": '"original-etag"',
+        "Body": body,
+    }
+
+    result = activate()
+
+    arguments = client.put_object.call_args.kwargs
+    assert arguments["IfMatch"] == '"original-etag"'
+    assert "IfNoneMatch" not in arguments
+    assert result.previous_release_id == "release-old"
+    assert body.closed
+
+
+@pytest.mark.parametrize(
+    ("code", "status"),
+    [
+        ("PreconditionFailed", 412),
+        ("ConditionalRequestConflict", 409),
+    ],
+)
+def test_conflict_is_reported_without_unconditional_retry(
+    client: MagicMock,
+    code: str,
+    status: int,
+) -> None:
+    client.put_object.side_effect = s3_error(code, status, "PutObject")
+
+    with pytest.raises(pointer.ReleaseActivationConflict):
+        activate()
+
+    client.put_object.assert_called_once()
+    assert client.put_object.call_args.kwargs["IfNoneMatch"] == "*"
+
+
+def test_read_permission_error_is_not_treated_as_missing(
+    client: MagicMock,
+) -> None:
+    client.get_object.side_effect = s3_error("AccessDenied", 403, "GetObject")
+
+    with pytest.raises(ClientError):
+        activate()
+
+    client.put_object.assert_not_called()
+
+
+def test_write_permission_error_is_preserved(client: MagicMock) -> None:
+    client.put_object.side_effect = s3_error("AccessDenied", 403, "PutObject")
+
+    with pytest.raises(ClientError):
+        activate()
+
+
+def test_missing_manifest_prevents_activation(
+    client: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(pointer, "file_exists", lambda path: False)
+
+    with pytest.raises(FileNotFoundError, match="without manifest"):
+        activate()
+
+    client.get_object.assert_not_called()
+    client.put_object.assert_not_called()
+
+
+def test_invalid_existing_pointer_is_not_overwritten(client: MagicMock) -> None:
+    body = io.BytesIO(b"{}")
+    client.get_object.side_effect = None
+    client.get_object.return_value = {"ETag": '"etag"', "Body": body}
+
+    with pytest.raises(ValueError):
+        activate()
+
+    assert body.closed
+    client.put_object.assert_not_called()

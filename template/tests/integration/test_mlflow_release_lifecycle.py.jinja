@@ -4,6 +4,7 @@ from typing import Any
 
 import mlflow
 import pandas as pd
+import pytest
 from mlflow import MlflowClient
 
 from {{ package_name }}.inference.releases.artifact_publisher import (
@@ -11,6 +12,9 @@ from {{ package_name }}.inference.releases.artifact_publisher import (
 )
 from {{ package_name }}.inference.releases.contracts import (
     TaskType,
+)
+from {{ package_name }}.inference.releases.portable_publisher import (
+    publish_portable_serving_release,
 )
 from {{ package_name }}.inference.releases.publisher import (
     publish_serving_release,
@@ -164,8 +168,10 @@ def build_release_sources(
 {% endif %}
 
 
+@pytest.mark.parametrize("portable", [False, True])
 def test_real_mlflow_to_serving_release(
     tmp_path: Path,
+    portable: bool,
 ) -> None:
     database_path = (
         tmp_path / "mlflow.db"
@@ -284,7 +290,8 @@ def test_real_mlflow_to_serving_release(
         is not None
     )
 
-    release = publish_serving_release(
+    publisher = publish_portable_serving_release if portable else publish_serving_release
+    release = publisher(
         models_path=str(models_path),
         registration=(
             lifecycle.registration
@@ -298,12 +305,12 @@ def test_real_mlflow_to_serving_release(
         metadata=RELEASE_METADATA,
         dataset_version="integration-dataset",
         git_commit="integration-test",
-        release_id="release-integration",
+        **({} if portable else {"release_id": "release-integration"}),
     )
 
     assert (
         release.active_pointer.release_id
-        == "release-integration"
+        == release.manifest.release_id
     )
 
     active_manifest, release_root = (
@@ -314,7 +321,7 @@ def test_real_mlflow_to_serving_release(
 
     assert (
         active_manifest.release_id
-        == "release-integration"
+        == release.manifest.release_id
     )
     assert (
         active_manifest.model.version
@@ -322,7 +329,8 @@ def test_real_mlflow_to_serving_release(
     )
     assert (
         active_manifest.model.uri
-        == lifecycle.registration.model_uri
+        == (str(Path(release.release_root) / "model")
+            if portable else lifecycle.registration.model_uri)
     )
     assert release_root == release.release_root
 
@@ -338,9 +346,7 @@ def test_real_mlflow_to_serving_release(
         == lifecycle.registration.model_version
     )
 
-    loaded_model = mlflow.pyfunc.load_model(
-        lifecycle.registration.model_uri
-    )
+    loaded_model = mlflow.pyfunc.load_model(active_manifest.model.uri)
     predictions = loaded_model.predict(
         pd.DataFrame(
             {

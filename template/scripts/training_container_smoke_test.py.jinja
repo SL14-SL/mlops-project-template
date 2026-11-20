@@ -1,0 +1,233 @@
+"""Run isolated training in a network-disabled container with synthetic mounts."""
+
+import argparse
+import ast
+import hashlib
+import json
+import subprocess
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+import mlflow
+import pandas as pd
+import yaml
+
+ADAPTER_NAMES = {
+    "MeanModel",
+    "CsvIngestor",
+    "FixtureFeatureBuilder",
+    "FixtureSplitter",
+    "MeanTrainer",
+    "MaeEvaluator",
+    "PyfuncLogger",
+    "FixtureReleaseProvider",
+}
+
+ADAPTER_IMPORTS = """\
+from collections.abc import Mapping
+from pathlib import Path
+from typing import Any
+
+import mlflow
+import pandas as pd
+
+from {{ package_name }}.data.contracts import DatasetCollection, DatasetSplits
+from {{ package_name }}.inference.releases.artifact_publisher import ServingArtifactSource
+from {{ package_name }}.inference.releases.contracts import TaskType
+from {{ package_name }}.inference.releases.input_provider import ServingReleaseInput
+from {{ package_name }}.pipeline.service import TrainingPipeline
+from {{ package_name }}.tracking.mlflow import get_active_training_run_id
+from {{ package_name }}.training.contracts import EvaluationResult, TrainingResult
+
+"""
+
+FACTORY_SOURCE = """\
+def build_fixture_pipeline(config):
+    return TrainingPipeline(
+        ingestor=CsvIngestor(),
+        feature_builder=FixtureFeatureBuilder(),
+        splitter=FixtureSplitter(),
+        trainer=MeanTrainer(),
+        evaluator=MaeEvaluator(),
+        model_logger=PyfuncLogger(),
+        release_input_provider=FixtureReleaseProvider(),
+        config=config,
+        run_repository=None,
+    )
+"""
+
+RUNNER_SOURCE = """\
+import runpy
+import sys
+from pathlib import Path
+
+import cloudpickle
+import project_adapters
+
+from {{ package_name }}.pipeline import project_factory
+
+cloudpickle.register_pickle_by_value(project_adapters)
+project_factory.build_project_training_pipeline = (
+    project_adapters.build_fixture_pipeline
+)
+
+sys.argv = [
+    "train.py",
+    "train",
+    "--config", "/smoke/config.yaml",
+    "--input-dir", "/opt/ml/input/data/training",
+    "--work-dir", "/tmp/mlops-training-work",
+    "--model-dir", "/opt/ml/model",
+    "--output-dir", "/opt/ml/output/data",
+]
+
+try:
+    runpy.run_module("{{ package_name }}.aws.train", run_name="__main__")
+finally:
+    # Synthetic smoke-test exports must remain readable and removable
+    # by the host user, whose UID can differ from the container UID.
+    for directory in (Path("/opt/ml/model"), Path("/opt/ml/output/data")):
+        for path in directory.rglob("*"):
+            if not path.is_symlink():
+                path.chmod(0o777 if path.is_dir() else 0o644)
+"""
+
+
+def _adapter_source(project_root: Path) -> str:
+    """Reuse integration-test adapters without importing pytest in the image."""
+    source = project_root / "tests/integration/test_aws_training_job.py"
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    classes = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name in ADAPTER_NAMES
+    ]
+
+    if {node.name for node in classes} != ADAPTER_NAMES:
+        raise ValueError("Training integration-test adapters are incomplete.")
+
+    return (
+        ADAPTER_IMPORTS
+        + "\n\n".join(ast.unparse(node) for node in classes)
+        + "\n\n"
+        + FACTORY_SOURCE
+    )
+
+
+def _verify_exports(root: Path) -> None:
+    """Check predictions and checksums after the container exits."""
+    model_root = root / "model"
+    report = json.loads(
+        (root / "output/evaluation.json").read_text(encoding="utf-8")
+    )
+    candidate = json.loads(
+        (model_root / "candidate.json").read_text(encoding="utf-8")
+    )
+
+    assert report["evaluation_approved"] is True
+    assert report["promoted"] is False
+    assert report["training_rows"] == 2
+    assert report["validation_rows"] == 2
+    assert report["evaluation_metrics"]["mae"] == 1.0
+    assert candidate["run_id"] == report["run_id"]
+    assert candidate["promoted"] is False
+    assert candidate["artifacts"]
+    assert candidate["model_files"]
+
+    references = dict(candidate["model_files"])
+    references.update({
+        reference["path"]: reference["sha256"]
+        for reference in candidate["artifacts"].values()
+    })
+
+    for relative_path, expected in references.items():
+        artifact = (model_root / relative_path).resolve()
+
+        if model_root.resolve() not in artifact.parents:
+            raise ValueError("Exported artifact escaped the candidate directory.")
+
+        actual = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        assert actual == expected, relative_path
+
+    model = mlflow.pyfunc.load_model(str(model_root / "model"))
+    predictions = model.predict(
+        pd.DataFrame({"feature": [10.0, 20.0]})
+    )
+    assert list(predictions) == [3.0, 3.0]
+    assert not list(root.rglob("active_serving_release.json"))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--image", required=True)
+    args = parser.parse_args()
+
+    project_root = Path(__file__).resolve().parents[1]
+
+    with TemporaryDirectory(prefix="training-container-smoke-") as temporary:
+        root = Path(temporary)
+        root.chmod(0o755)
+
+        for name in ("input", "model", "output"):
+            directory = root / name
+            directory.mkdir()
+            directory.chmod(0o755 if name == "input" else 0o777)
+
+        source = root / "input/records.csv"
+        source.write_text(
+            "feature,target\n0,2\n1,4\n2,3\n3,5\n",
+            encoding="utf-8",
+        )
+        original_input = source.read_bytes()
+
+        (root / "project_adapters.py").write_text(
+            _adapter_source(project_root),
+            encoding="utf-8",
+        )
+        (root / "runner.py").write_text(
+            RUNNER_SOURCE,
+            encoding="utf-8",
+        )
+        (root / "config.yaml").write_text(
+            yaml.safe_dump({
+                "paths": {},
+                "tracking": {},
+                "job_options": {"maximum_mae": 1.0},
+            }),
+            encoding="utf-8",
+        )
+
+        for file in root.rglob("*"):
+            if file.is_file():
+                file.chmod(0o644)
+
+        subprocess.run(
+            [
+                "docker", "run", "--rm",
+                "--network", "none",
+                "--entrypoint", "python",
+                "--mount", f"type=bind,src={root},dst=/smoke,readonly",
+                "--mount",
+                f"type=bind,src={root / 'input'},dst=/opt/ml/input/data/training,readonly",
+                "--mount",
+                f"type=bind,src={root / 'model'},dst=/opt/ml/model",
+                "--mount",
+                f"type=bind,src={root / 'output'},dst=/opt/ml/output/data",
+                args.image,
+                "/smoke/runner.py",
+            ],
+            check=True,
+            timeout=180,
+        )
+
+        assert source.read_bytes() == original_input
+        _verify_exports(root)
+
+    print(
+        "PASS: container training, mounted outputs, model reload, "
+        "artifact checksums and unchanged input"
+    )
+
+
+if __name__ == "__main__":
+    main()

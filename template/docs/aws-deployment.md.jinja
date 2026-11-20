@@ -1,0 +1,358 @@
+# AWS deployment
+
+This guide applies to the deployment and end-to-end tiers.
+
+## Scope and verification
+
+The template supports:
+
+- Optional AWS Python dependencies and AWS-enabled API images.
+- S3 configuration and artifact storage.
+- Conditional S3 serving-release pointer updates.
+- Terraform infrastructure for ECS/Fargate, an internal Application Load
+  Balancer, and an API Gateway HTTP API with a public HTTPS endpoint.
+
+Generated classification and forecasting projects are tested locally and
+in CI, including prediction smoke tests in AWS-enabled containers.
+Terraform configuration is initialized and validated in CI.
+
+The generated AWS infrastructure has not been deployed and verified
+end to end on AWS. Terraform validation does not verify IAM permissions,
+KMS access, networking, or application startup in the cloud.
+
+{% if project_tier == "end_to_end" %}
+For isolated training, Fargate transport and SageMaker configuration,
+see [AWS training](aws-training.md). Generated cloud execution remains
+unverified.
+{% else %}
+AWS training components are available only in the end_to_end tier.
+{% endif %}
+
+## Architecture
+
+API Gateway forwards HTTPS requests through a VPC link to an internal
+HTTP load balancer. The load balancer forwards requests to one Fargate
+API task.
+
+The API reads the active serving release and model from S3. The API key
+is injected from Secrets Manager by the task execution role.
+
+Important limitations:
+
+- TLS terminates at API Gateway. Internal HTTP traffic, including the
+  application API key, is unencrypted.
+- FastAPI enforces API-key authentication for prediction requests.
+  API Gateway does not have a separate authorizer.
+- Health and documentation routes are public.
+- Only explicitly configured routes are exposed through API Gateway.
+- One API task is a development configuration, not a highly available setup.
+- Tasks use public IP addresses for outbound HTTPS access. Security groups
+  do not permit public inbound access to the application port.
+- Configure internal TLS and review network isolation before using
+  confidential data or adopting this configuration for production.
+
+## Prerequisites
+
+Install Terraform, AWS CLI, Docker with Buildx, and uv.
+
+Configure AWS credentials usable by AWS CLI, Terraform, boto3 and s3fs.
+A CLI login alone may require an additional credential-process profile
+for compatibility with these tools.
+
+Select the configured profile:
+
+```bash
+export AWS_PROFILE=your-project-profile
+export AWS_REGION=eu-north-1
+export AWS_DEFAULT_REGION=eu-north-1
+export AWS_PAGER=""
+
+aws sts get-caller-identity
+```
+
+Install the generated project's dependencies:
+
+```bash
+uv sync --extra aws
+```
+
+You also need a complete, active local serving release and access to its
+MLflow model artifacts. Deploying infrastructure does not train a model
+or create a serving release.
+
+## Create the base infrastructure
+
+Copy the example configuration:
+
+```bash
+cp infrastructure/terraform-aws/terraform.tfvars.example \
+  infrastructure/terraform-aws/terraform.tfvars
+```
+
+Edit the local file:
+
+- Set the actual AWS account ID.
+- Select the region and environment.
+- Keep `api_serving_enabled = false`.
+
+The local tfvars file is ignored by Git.
+
+Initialize, review, and apply. Set `STATE_KEY` to `OWNER/{{ project_slug }}/dev/terraform.tfstate`
+using your actual GitHub owner and repository name. This must match the workflow
+key `${GITHUB_REPOSITORY}/${environment}/terraform.tfstate`; a different key creates
+a separate state and can lead to duplicate resources.
+
+```bash
+terraform -chdir=infrastructure/terraform-aws init \
+  -backend-config="bucket=$STATE_BUCKET" \
+  -backend-config="key=$STATE_KEY" \
+  -backend-config="region=$AWS_REGION" \
+  -backend-config="use_lockfile=true"
+
+terraform -chdir=infrastructure/terraform-aws plan \
+  -out=aws-base.tfplan
+
+terraform -chdir=infrastructure/terraform-aws apply \
+  aws-base.tfplan
+```
+
+This creates persistent resources even while serving is disabled,
+including S3, ECR, KMS, Secrets Manager, logs, IAM roles, and networking.
+
+The module uses an S3 backend. Create the state bucket separately before initialization,
+set `STATE_BUCKET` to its name, block all public access and enable versioning. Keep the
+bucket until application teardown has completed. Do not commit state or plan files.
+For an isolated offline validation use `terraform init -backend=false`.
+
+## GitHub Actions and OIDC
+
+Create a GitHub environment (for example `dev`) and set environment variables:
+
+- `AWS_ACCOUNT_ID`: your account ID.
+- `AWS_REGION`: the deployment region.
+- `AWS_TF_STATE_BUCKET`: the separately created state bucket.
+- `AWS_DEPLOY_ROLE_ARN`: a deployment role trusted by the GitHub OIDC provider.
+{% if project_tier == 'end_to_end' %}
+- `AWS_MANAGED_MLFLOW=true`: provision the managed tracking stack.
+{% endif %}
+
+The role trust must require audience `sts.amazonaws.com` and the exact repository and
+environment subject. Check the repository OIDC configuration with
+`gh api repos/OWNER/REPO/actions/oidc/customization/sub`: immutable subjects can include
+owner/repository IDs. Do not assume the old `repo:OWNER/REPO:environment:dev` format.
+Use the actual subject prefix and append the environment claim required by GitHub.
+Review repository/environment protection before authorizing deployments.
+
+Grant the role project-scoped permissions for Terraform-managed services and state
+bucket/object access, including native S3 lock objects. Include KMS permissions for
+the encrypted project bucket and `iam:PassRole` restricted to the generated ECS roles.
+{% if project_tier == 'end_to_end' %}
+Managed MLflow also needs RDS, ECS, ECR, ELB, API Gateway, Lambda, Secrets Manager,
+CloudWatch and related IAM provisioning permissions. API Gateway IAM operations use
+HTTP verbs such as `GET`, `POST`, `PATCH`, `PUT`, `DELETE`, rather than `TagResource`.
+{% endif %}
+A policy is account-specific: validate it with IAM Access Analyzer, review its resource
+scope and test a plan before applying. Organization SCP denies must be resolved at
+the organization level; attaching another role policy cannot override them.
+
+```bash
+gh workflow run deploy-aws.yml --ref main \
+  -f environment=dev -f enable_serving=false -f apply_changes=false
+```
+
+Inspect the plan, then dispatch with `apply_changes=true` to build images and provision
+the stack. Bootstrap first creates repositories and the API secret; images are pinned
+by digest. Existing API tokens are retained. Never run competing local and CI applies.
+{% if project_tier == 'end_to_end' %}
+Continue with [the lifecycle guide](aws-lifecycle.md), implementing the project adapters
+before launching training. Enable serving only after a valid release is published.
+{% endif %}
+
+## Upload an AWS-enabled API image
+
+Read the repository URL:
+
+```bash
+API_REPOSITORY=$(terraform -chdir=infrastructure/terraform-aws \
+  output -raw api_repository_url)
+
+ECR_REGISTRY="${API_REPOSITORY%%/*}"
+API_IMAGE_TAG="api-$(date -u +%Y%m%dT%H%M%SZ)"
+```
+
+Authenticate Docker:
+
+```bash
+aws ecr get-login-password --region "$AWS_REGION" |
+  docker login --username AWS --password-stdin "$ECR_REGISTRY"
+```
+
+Build and push a Linux/amd64 image:
+
+```bash
+docker buildx build \
+  --platform linux/amd64 \
+  --provenance=false \
+  --sbom=false \
+  --build-arg INSTALL_AWS=true \
+  --tag "$API_REPOSITORY:$API_IMAGE_TAG" \
+  --push \
+  .
+```
+
+Inspect the uploaded image:
+
+```bash
+aws ecr describe-images \
+  --repository-name "${API_REPOSITORY#*/}" \
+  --image-ids imageTag="$API_IMAGE_TAG" \
+  --query 'imageDetails[0].imageDigest' \
+  --output text
+```
+
+Record the digest in `api_image_digest` in the local tfvars file.
+Use the Linux/amd64 image manifest digest. If the image was produced
+using different build options, check whether the reported digest
+references an image index instead.
+
+ECR tags are immutable. Use a new tag for each build.
+
+## Set the API key
+
+Terraform creates the secret resource but does not manage its value.
+
+Generate and store a key without printing it or writing it to Terraform:
+
+```bash
+export AWS_API_SECRET_ARN="$(
+  terraform -chdir=infrastructure/terraform-aws \
+    output -raw api_key_secret_arn
+)"
+
+uv run --extra aws python - <<'PY'
+import os
+import secrets
+
+import boto3
+
+boto3.client("secretsmanager").put_secret_value(
+    SecretId=os.environ["AWS_API_SECRET_ARN"],
+    SecretString=secrets.token_urlsafe(32),
+)
+print("API key stored without displaying its value.")
+PY
+```
+
+This command replaces the current secret value. Rotating it for an
+existing deployment also requires replacing the running tasks so they
+receive the new value.
+
+## Export and activate a serving release
+
+Read the target location:
+
+```bash
+AWS_MODELS_URI=$(terraform -chdir=infrastructure/terraform-aws \
+  output -raw models_uri)
+```
+
+Export an existing active local release:
+
+```bash
+uv run --extra aws python scripts/export_serving_release_to_cloud.py \
+  --source-models-path artifacts/models \
+  --target-models-path "$AWS_MODELS_URI" \
+  --mlflow-tracking-uri http://127.0.0.1:5000
+```
+
+Adapt the source path and tracking URI to the actual local release.
+
+The exporter copies the model and serving artifacts, writes the
+manifest, and activates the target release using a conditional pointer
+write. The operator running the export needs S3 write and appropriate
+KMS permissions. The API task role intentionally cannot publish models
+or activate releases.
+
+## Enable serving
+
+After the image, secret value, and serving release exist, set:
+
+```hcl
+api_serving_enabled = true
+api_image_digest    = "sha256:REPLACE_WITH_ACTUAL_DIGEST"
+```
+
+Review and apply:
+
+```bash
+terraform -chdir=infrastructure/terraform-aws plan \
+  -out=aws-serving.tfplan
+
+terraform -chdir=infrastructure/terraform-aws apply \
+  aws-serving.tfplan
+```
+
+Read the endpoint and verify health:
+
+```bash
+API_ENDPOINT=$(terraform -chdir=infrastructure/terraform-aws \
+  output -raw api_endpoint)
+
+curl --fail-with-body "$API_ENDPOINT/livez"
+curl --fail-with-body "$API_ENDPOINT/readyz"
+```
+
+Readiness must identify the intended active release. Then verify a
+prediction request appropriate to the project's task type:
+
+- Without a key: HTTP 401.
+- With the wrong key: HTTP 403.
+- With the correct key: HTTP 200 and the expected prediction.
+
+Send the key through the `X-API-Key` header. Do not print it in screenshots
+or commit it to the repository.
+
+## Disable serving
+
+Set `api_serving_enabled = false`, review a new plan, and apply it.
+
+This removes the API service and task definition, load balancer, and
+API Gateway resources. It retains the base infrastructure and stored
+artifacts. Re-enabling can create a different public endpoint URL.
+
+Disabling serving does not eliminate all costs. Storage, images,
+Secrets Manager, KMS, and retained logs can still incur charges.
+
+## Full teardown
+
+Use the same Terraform state, account, region, and variable configuration.
+
+The S3 bucket and ECR repository default to refusing deletion while
+they contain data or images.
+
+If permanent deletion of all project artifacts is intended:
+
+1. Set `force_destroy = true` on `aws_s3_bucket.artifacts`.
+2. Set `force_delete = true` on `aws_ecr_repository.api`.
+3. Review and apply these configuration changes first.
+4. Create and review a destroy plan.
+5. Apply the saved destroy plan.
+
+```bash
+terraform -chdir=infrastructure/terraform-aws plan \
+  -destroy \
+  -out=aws-destroy.tfplan
+
+terraform -chdir=infrastructure/terraform-aws apply \
+  aws-destroy.tfplan
+
+terraform -chdir=infrastructure/terraform-aws state list
+```
+
+A successful full teardown leaves the Terraform state empty.
+Secrets Manager uses a seven-day recovery window; the KMS key uses a
+30-day deletion window. Some resources therefore remain pending deletion.
+
+Keep the state until cleanup has completed. Reset the temporary
+`force_destroy` and `force_delete` settings in the source afterward.
+Do not run a normal apply after teardown unless a rebuild is intended.
