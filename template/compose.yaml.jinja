@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        INSTALL_AWS: "${INSTALL_AWS:-false}"
     image: {{project_slug}}-api:${IMAGE_TAG:-local}
     init: true
     restart: unless-stopped

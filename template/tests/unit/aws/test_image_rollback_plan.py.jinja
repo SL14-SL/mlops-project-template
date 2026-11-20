@@ -1,0 +1,40 @@
+import importlib.util
+from pathlib import Path
+
+import pytest
+
+
+@pytest.fixture
+def validator():
+    path = Path(__file__).resolve().parents[3] / "scripts/plan_aws_image_rollback.py"
+    spec = importlib.util.spec_from_file_location("rollback_plan", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.validate_plan
+
+
+def test_api_image_plan_allows_other_resource_reads(validator):
+    validator(
+        {
+            "resource_changes": [
+                {
+                    "address": "aws_ecs_task_definition.api[0]",
+                    "change": {"actions": ["delete", "create"]},
+                },
+                {"address": "aws_ecs_service.api[0]", "change": {"actions": ["update"]}},
+                {"address": "aws_db_instance.mlflow[0]", "change": {"actions": ["no-op"]}},
+            ]
+        }
+    )
+
+
+@pytest.mark.parametrize("actions", [["delete"], ["update"], ["create"]])
+def test_unrelated_changes_rejected_before_apply(validator, actions):
+    with pytest.raises(ValueError, match="unrelated resources"):
+        validator(
+            {
+                "resource_changes": [
+                    {"address": "aws_db_instance.mlflow[0]", "change": {"actions": actions}}
+                ]
+            }
+        )

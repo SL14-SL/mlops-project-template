@@ -30,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help=(
             "Destination models path, normally "
-            "gs://BUCKET/models."
+            "gs://BUCKET/models or s3://BUCKET/models."
         ),
     )
     parser.add_argument(

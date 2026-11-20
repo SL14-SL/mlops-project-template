@@ -1,0 +1,122 @@
+resource "aws_security_group" "training_task" {
+  name        = "${local.name_prefix}-training-task"
+  description = "Training tasks with outbound HTTPS and no inbound access"
+  vpc_id      = aws_vpc.main.id
+}
+
+# Development topology: public IPs provide outbound HTTPS access to AWS
+# service endpoints. No inbound access is permitted.
+# Use private subnets and controlled endpoints for stricter isolation.
+# trivy:ignore:AVD-AWS-0104
+resource "aws_vpc_security_group_egress_rule" "training_task_https" {
+  security_group_id = aws_security_group.training_task.id
+  description       = "Outbound HTTPS for training inputs and results"
+  cidr_ipv4         = "0.0.0.0/0"
+
+  ip_protocol = "tcp"
+  from_port   = 443
+  to_port     = 443
+}
+
+resource "aws_ecs_task_definition" "training" {
+  count = var.training_task_enabled ? 1 : 0
+
+  family                   = "${local.name_prefix}-training"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = "2048"
+  memory                   = "8192"
+
+  execution_role_arn = aws_iam_role.training_execution.arn
+  task_role_arn      = aws_iam_role.training_task.arn
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "X86_64"
+  }
+
+  container_definitions = jsonencode([
+    {
+      name      = "training"
+      essential = true
+      image     = "${aws_ecr_repository.training.repository_url}@${var.training_image_digest}"
+
+      user             = "10001:10001"
+      workingDirectory = "/app"
+
+      entryPoint = [
+        "python",
+        "-m",
+        "{{ package_name }}.aws.lifecycle"
+      ]
+
+      command = ["train"]
+
+      mountPoints    = []
+      portMappings   = []
+      systemControls = []
+      volumesFrom    = []
+
+      linuxParameters = {
+        capabilities = {
+          add  = []
+          drop = ["ALL"]
+        }
+      }
+
+      environment = [
+        { name = "APP_ENV", value = var.environment },
+        { name = "S3_BUCKET_NAME", value = aws_s3_bucket.artifacts.id },
+        { name = "MLFLOW_TRACKING_URI", value = local.mlflow_tracking_uri },
+        { name = "PREFECT_API_URL", value = var.prefect_api_url },
+        { name = "AWS_ECS_CLUSTER", value = aws_ecs_cluster.main.arn },
+        { name = "AWS_API_SERVICE", value = var.api_serving_enabled ? "${local.name_prefix}-api" : "" },
+        { name = "AWS_API_ENDPOINT", value = var.api_serving_enabled ? aws_apigatewayv2_api.api[0].api_endpoint : "" },
+        {
+          name  = "AWS_REGION"
+          value = var.aws_region
+        },
+        {
+          name  = "AWS_DEFAULT_REGION"
+          value = var.aws_region
+        },
+        {
+          name  = "CLOUD_PROVIDER"
+          value = "aws"
+        },
+        {
+          name  = "MLFLOW_DISABLE_TELEMETRY"
+          value = "true"
+        }
+      ]
+
+      secrets = concat(
+        local.mlflow_token_secret_arn != "" ? [{ name = "MLFLOW_TRACKING_TOKEN", valueFrom = local.mlflow_token_secret_arn }] : [],
+        var.prefect_key_secret_arn != "" ? [{ name = "PREFECT_API_KEY", valueFrom = var.prefect_key_secret_arn }] : []
+      )
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.training.name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "training"
+        }
+      }
+    }
+  ])
+
+  lifecycle {
+    precondition {
+      condition     = var.training_image_digest != ""
+      error_message = "Set training_image_digest before enabling the training task."
+    }
+  }
+
+  depends_on = [
+    aws_iam_role_policy.training_execution,
+    aws_iam_role_policy.training_task,
+    aws_s3_bucket_server_side_encryption_configuration.artifacts,
+    aws_s3_bucket_policy.artifacts
+  ]
+}

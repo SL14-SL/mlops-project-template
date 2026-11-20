@@ -3,6 +3,7 @@ project:
   slug: "{{ project_slug }}"
   task_type: "{{ task_type }}"
   tier: "{{ project_tier }}"
+  cloud_provider: "{{ cloud_provider }}"
 
 {% if project_tier == "end_to_end" %}
 notifications:
@@ -48,4 +49,14 @@ tracking:
     minimum_improvement: 0.0
 {% endif %}
     allow_initial_champion: true
+{% endif %}
+
+{% if project_tier == "end_to_end" %}
+# Project monitoring adapters publish validated evidence; a schedule does not create labels.
+monitoring:
+  retraining:
+    cooldown_hours: 168
+    minimum_new_training_rows: 500
+    scheduled_interval_hours: 720
+    maximum_signal_age_hours: 48
 {% endif %}

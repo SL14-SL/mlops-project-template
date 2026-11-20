@@ -1,0 +1,66 @@
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+import pytest
+
+from {{ package_name }}.aws import lifecycle
+
+
+@pytest.mark.parametrize(
+    "tracking", ["sqlite:///local.db", "http://localhost:5000", "https://127.0.0.1"]
+)
+def test_rejects_job_local_tracking(monkeypatch, tracking):
+    monkeypatch.setenv("CLOUD_PROVIDER", "aws")
+    monkeypatch.setattr(
+        lifecycle,
+        "load_config",
+        lambda: {
+            "paths": {"models": "s3://bucket/models"},
+            "tracking": {"mlflow_tracking_uri": tracking},
+        },
+    )
+    with pytest.raises(ValueError, match="shared HTTP"):
+        lifecycle.load_aws_lifecycle_config()
+
+
+def test_initial_training_can_publish_before_serving_is_enabled(monkeypatch):
+    config = {"paths": {"artifacts": "s3://bucket/artifacts"}}
+    result = SimpleNamespace(
+        serving_release=SimpleNamespace(manifest=SimpleNamespace(release_id="new")),
+        pipeline=SimpleNamespace(pipeline=SimpleNamespace(training=SimpleNamespace(run_id="run"))),
+        candidate=SimpleNamespace(
+            registration=SimpleNamespace(registered=True, model_version="2"),
+            promotion=SimpleNamespace(decision=SimpleNamespace(reason="better")),
+        ),
+    )
+    monkeypatch.setenv("AWS_API_SERVICE", "")
+    monkeypatch.setattr(lifecycle, "load_aws_lifecycle_config", lambda: config)
+    monkeypatch.setattr(lifecycle, "build_project_training_pipeline", lambda config: "pipeline")
+    monkeypatch.setattr(lifecycle, "run_prefect_model_lifecycle", lambda **kwargs: result)
+    from {{ package_name }}.orchestration import retraining_service
+
+    completion = MagicMock()
+    monkeypatch.setattr(retraining_service, "record_training_completion", completion)
+    assert lifecycle.run_aws_lifecycle()["release_id"] == "new"
+    completion.assert_called_once_with(config=config, evaluated_at=None)
+
+
+def test_failed_refresh_rolls_back_and_still_reports_failure(monkeypatch):
+    from {{ package_name }}.aws import operations
+    from {{ package_name }}.inference.releases import pointer
+
+    monkeypatch.setenv("AWS_API_SERVICE", "api")
+    monkeypatch.setattr(
+        pointer,
+        "load_active_release_pointer",
+        lambda **kwargs: SimpleNamespace(release_id="new", previous_release_id="old"),
+    )
+    monkeypatch.setattr(
+        operations, "refresh_service", MagicMock(side_effect=RuntimeError("unhealthy"))
+    )
+    rollback = MagicMock()
+    monkeypatch.setattr(operations, "rollback_model", rollback)
+    config = {"paths": {"models": "s3://bucket/models"}}
+    with pytest.raises(RuntimeError, match="unhealthy"):
+        lifecycle._refresh_promoted_release(config)
+    rollback.assert_called_once_with(config=config)

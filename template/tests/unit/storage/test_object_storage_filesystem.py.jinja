@@ -1,0 +1,119 @@
+from datetime import UTC, datetime
+from unittest.mock import MagicMock
+
+import pytest
+
+from {{ package_name }}.storage import filesystem
+
+
+@pytest.fixture(params=["gs", "s3"])
+def remote_storage(
+    request: pytest.FixtureRequest,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[str, MagicMock]:
+    scheme = request.param
+    fake = MagicMock()
+    factory_name = "_gcs_fs" if scheme == "gs" else "_s3_fs"
+    monkeypatch.setattr(filesystem, factory_name, lambda: fake)
+    return f"{scheme}://example-bucket", fake
+
+
+def test_file_exists_uses_selected_backend(remote_storage) -> None:
+    root, fake = remote_storage
+    fake.exists.return_value = True
+
+    assert filesystem.file_exists(f"{root}/file.txt")
+
+    fake.exists.assert_called_once_with(f"{root}/file.txt")
+
+
+def test_ensure_dir_does_not_create_local_cloud_directories(
+    remote_storage,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, fake = remote_storage
+    mkdir = MagicMock()
+    monkeypatch.setattr(filesystem.Path, "mkdir", mkdir)
+
+    filesystem.ensure_dir(f"{root}/nested")
+
+    mkdir.assert_not_called()
+    fake.makedirs.assert_not_called()
+
+
+def test_list_files_restores_scheme_and_sorts(remote_storage) -> None:
+    root, fake = remote_storage
+    fake.glob.return_value = [
+        "example-bucket/b.csv",
+        f"{root}/a.csv",
+    ]
+
+    assert filesystem.list_files(f"{root}/*.csv") == [
+        f"{root}/a.csv",
+        f"{root}/b.csv",
+    ]
+    fake.glob.assert_called_once_with(f"{root}/*.csv")
+
+
+def test_read_text_uses_utf8(remote_storage) -> None:
+    root, fake = remote_storage
+    handle = fake.open.return_value.__enter__.return_value
+    handle.read.return_value = "Grüße"
+
+    assert filesystem.read_text(f"{root}/file.txt") == "Grüße"
+
+    fake.open.assert_called_once_with(
+        f"{root}/file.txt",
+        "r",
+        encoding="utf-8",
+    )
+
+
+def test_write_text_uses_utf8(remote_storage) -> None:
+    root, fake = remote_storage
+    handle = fake.open.return_value.__enter__.return_value
+
+    filesystem.write_text(f"{root}/file.txt", "Grüße")
+
+    fake.open.assert_called_once_with(
+        f"{root}/file.txt",
+        "w",
+        encoding="utf-8",
+    )
+    handle.write.assert_called_once_with("Grüße")
+    fake.rm.assert_not_called()
+
+
+def test_remove_existing_object(remote_storage) -> None:
+    root, fake = remote_storage
+    fake.exists.return_value = True
+
+    filesystem.remove_file(f"{root}/file.txt")
+
+    fake.rm.assert_called_once_with(f"{root}/file.txt")
+
+
+def test_remove_missing_object(remote_storage) -> None:
+    root, fake = remote_storage
+    fake.exists.return_value = False
+
+    filesystem.remove_file(f"{root}/missing.txt")
+
+    fake.rm.assert_not_called()
+
+
+@pytest.mark.parametrize("field", ["updated", "LastModified"])
+def test_modified_time_accepts_backend_metadata(
+    remote_storage,
+    field: str,
+) -> None:
+    root, fake = remote_storage
+    timestamp = datetime(2026, 1, 1, tzinfo=UTC)
+    fake.info.return_value = {field: timestamp}
+
+    assert filesystem.modified_time(f"{root}/file.txt") == timestamp.timestamp()
+
+
+def test_rejects_unsupported_backend() -> None:
+    with pytest.raises(ValueError, match="Unsupported object-storage URI"):
+        filesystem._object_storage_fs("https://example.com/file.txt")

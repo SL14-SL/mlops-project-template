@@ -6,11 +6,100 @@ The template follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-19
+
 ### Added
+
+- Explicit AWS/GCP selection across both tasks and all three tiers; 12 CI variants.
+- AWS OIDC deployment/image rollback and Fargate lifecycle workflows.
+- Optional durable MLflow on Fargate, RDS PostgreSQL and S3 with authenticated gateway.
+- Portable model publication and shared evidence-driven retraining gates.
+- Offline regression coverage for logical clocks, cooldown, evidence validation and publication.
 
 ### Changed
 
+- Generate only the selected cloud provider infrastructure and workflows.
+- Quickstart examples reference v1.2.0; GCP remains the default for existing answers.
+
 ### Fixed
+
+- Format retraining flow names safely for longer generated project names.
+
+### Verification
+
+- All 34 PR checks passed, covering all twelve variants, Terraform validation,
+  container smoke/security checks and template update compatibility.
+- Generated cloud stacks still require account- and adapter-specific live verification.
+
+## [1.1.0] - 2026-11-17
+
+### Added
+
+- Isolated training with local MLflow tracking and portable candidate export
+  in the end-to-end tier.
+- Non-root training images, Fargate S3 transport, SageMaker request generation,
+  and scoped training infrastructure.
+- Container training smoke tests, image scans and AWS training documentation.
+- Verified Fargate training from a generated forecasting project on AWS,
+  including S3/KMS access, artifact checksums and model reload.
+- Screenshots and verification evidence documenting the successful cloud test
+  and completed infrastructure cleanup.
+
+### Changed
+
+- Quickstart examples now reference v1.1.0.
+
+### Fixed
+
+- Preserve unset MLflow registry configuration and tracking environment
+  variables after isolated training jobs.
+
+### Limitations
+
+- SageMaker cloud execution and non-root access to its mounted directories
+  remain unverified.
+- The generated API deployment remains unverified on AWS.
+- Training candidates are not automatically registered, promoted or activated.
+- AWS Terraform infrastructure remains experimental.
+
+
+## [1.0.0] - 2026-11-17
+
+### Added
+
+- Explicit stability and compatibility policy for documented public interfaces.
+- Compatibility tests verifying that project-owned trainers and evaluators
+  remain unchanged and functional after updates from v0.6.2.
+- Optional AWS dependencies, S3 storage configuration, and conditional
+  serving-release pointer updates.
+- AWS-enabled API container builds, prediction smoke tests, and image scans
+  across all six project variants.
+- Experimental AWS Terraform infrastructure for ECS/Fargate serving through
+  an API Gateway HTTPS endpoint in deployment and end-to-end tiers.
+- AWS deployment, operational limitations, and full teardown documentation.
+
+### Changed
+
+- Documented public contracts now follow the version 1.x compatibility policy.
+- Generated project CI tests both default and AWS-enabled dependencies.
+- Template CI validates generated AWS Terraform configuration.
+- Quickstart examples now reference v1.0.0.
+
+### Fixed
+
+- Reject absolute cloud URIs and backslashes in release-relative artifact paths.
+- Update OpenTelemetry dependencies in the template repository lockfile.
+
+### Migration
+
+- Existing 0.x projects should update on a dedicated branch, review generated
+  changes, regenerate their dependency lock, and run project-specific tests.
+- The compatibility guarantee starts with v1.0.0; pre-1.0 updates can require
+  manual migration and conflict resolution.
+- AWS Terraform remains experimental and is excluded from the stable
+  infrastructure compatibility guarantee. The generated AWS deployment has
+  not been verified end to end on AWS.
+- AWS training jobs and SageMaker execution are not included.
 
 ## [0.6.2] - 2026-11-04
 

@@ -15,6 +15,25 @@ grep -n \
   .copier-answers.yml
 ```
 
+## Compatibility expectations
+
+Starting with template version 1.0.0, documented public contracts are
+maintained across compatible 1.x releases. This includes prediction
+contracts, serving-release schemas, configuration meanings, and documented
+training extension interfaces.
+
+Copier updates still require reviewing generated changes. Custom edits
+to template-owned files can produce merge conflicts and may need manual
+resolution.
+
+Updates from pre-1.0 releases can require migration work. Changing the
+project tier or task type is also a separate migration.
+
+AWS Terraform deployment remains experimental and may require infrastructure
+migration within version 1.x. Review the changelog and AWS deployment guide
+before applying infrastructure changes.
+
+
 ## Prepare an update
 
 Start from a clean working tree:

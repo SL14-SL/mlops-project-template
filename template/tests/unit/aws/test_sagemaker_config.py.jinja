@@ -1,0 +1,77 @@
+import pytest
+
+from {{ package_name }}.aws.sagemaker_config import build_sagemaker_training_job
+
+
+@pytest.fixture
+def settings() -> dict[str, str]:
+    return {
+        "job_name": "training-smoke-001",
+        "role_arn": "arn:aws:iam::123456789012:role/project-training",
+        "image_uri": (
+            "123456789012.dkr.ecr.eu-north-1.amazonaws.com/"
+            "project-training@sha256:" + "a" * 64
+        ),
+        "input_uri": "s3://example-bucket/training/input/version-1",
+        "output_uri": "s3://example-bucket/training/output",
+        "kms_key_arn": (
+            "arn:aws:kms:eu-north-1:123456789012:"
+            "key/12345678-1234-1234-1234-123456789012"
+        ),
+    }
+
+
+def test_builds_isolated_training_request(settings) -> None:
+    request = build_sagemaker_training_job(**settings)
+
+    algorithm = request["AlgorithmSpecification"]
+    assert algorithm["TrainingInputMode"] == "File"
+    assert algorithm["ContainerEntrypoint"] == [
+        "python",
+        "-m",
+        "{{ package_name }}.aws.train",
+    ]
+    assert "--input-uri" not in algorithm["ContainerArguments"]
+    assert "/opt/ml/input/data/training" in algorithm["ContainerArguments"]
+    assert "/opt/ml/model" in algorithm["ContainerArguments"]
+    assert "/opt/ml/output/data" in algorithm["ContainerArguments"]
+    assert request["EnableNetworkIsolation"] is True
+    assert request["EnableInterContainerTrafficEncryption"] is True
+    assert request["ResourceConfig"]["InstanceCount"] == 1
+    assert request["ResourceConfig"]["VolumeKmsKeyId"] == settings["kms_key_arn"]
+    assert request["OutputDataConfig"]["KmsKeyId"] == settings["kms_key_arn"]
+    assert request["StoppingCondition"]["MaxRuntimeInSeconds"] == 900
+
+
+@pytest.mark.parametrize("job_name", ["", "-invalid", "invalid-", "a" * 64])
+def test_rejects_invalid_job_name(settings, job_name: str) -> None:
+    settings["job_name"] = job_name
+
+    with pytest.raises(ValueError, match="job name"):
+        build_sagemaker_training_job(**settings)
+
+
+def test_rejects_mutable_image_tag(settings) -> None:
+    settings["image_uri"] = (
+        "123456789012.dkr.ecr.eu-north-1.amazonaws.com/project-training:latest"
+    )
+
+    with pytest.raises(ValueError, match="pinned by sha256"):
+        build_sagemaker_training_job(**settings)
+
+
+def test_rejects_different_kms_region(settings) -> None:
+    settings["kms_key_arn"] = settings["kms_key_arn"].replace(
+        "eu-north-1",
+        "eu-west-1",
+    )
+
+    with pytest.raises(ValueError, match="same account and region"):
+        build_sagemaker_training_job(**settings)
+
+
+def test_rejects_overlapping_storage(settings) -> None:
+    settings["output_uri"] = settings["input_uri"]
+
+    with pytest.raises(ValueError, match="must not overlap"):
+        build_sagemaker_training_job(**settings)

@@ -1,0 +1,140 @@
+from pathlib import Path
+
+import pytest
+
+from {{ package_name }}.configs import loader
+from {{ package_name }}.configs.environment import override_cloud_storage_paths
+
+
+@pytest.fixture(autouse=True)
+def clean_cloud_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in (
+        "CLOUD_PROVIDER",
+        "S3_BUCKET_NAME",
+        "GCS_BUCKET_NAME",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
+@pytest.mark.parametrize("bucket", ["example-bucket", "s3://example-bucket/"])
+def test_aws_maps_local_project_paths(
+    monkeypatch: pytest.MonkeyPatch,
+    bucket: str,
+) -> None:
+    monkeypatch.setenv("CLOUD_PROVIDER", "aws")
+    monkeypatch.setenv("S3_BUCKET_NAME", bucket)
+    config = {
+        "paths": {
+            "data_root": "data",
+            "raw": "data/raw",
+            "interim": "data/interim",
+            "processed": "data/processed",
+            "artifacts": "artifacts",
+            "models": "artifacts/models",
+            "custom_local": "local/cache",
+        }
+    }
+
+    result = override_cloud_storage_paths(config)
+
+    assert result["paths"] == {
+        "data_root": "s3://example-bucket/data",
+        "raw": "s3://example-bucket/data/raw",
+        "interim": "s3://example-bucket/data/interim",
+        "processed": "s3://example-bucket/data/processed",
+        "artifacts": "s3://example-bucket/artifacts",
+        "models": "s3://example-bucket/models",
+        "custom_local": "local/cache",
+    }
+
+
+@pytest.mark.parametrize("scheme", ["gs", "s3"])
+def test_aws_preserves_remote_suffixes(
+    monkeypatch: pytest.MonkeyPatch,
+    scheme: str,
+) -> None:
+    monkeypatch.setenv("CLOUD_PROVIDER", "aws")
+    monkeypatch.setenv("S3_BUCKET_NAME", "new-bucket")
+    config = {
+        "paths": {
+            "models": f"{scheme}://old-bucket/models",
+            "custom": f"{scheme}://old-bucket/custom/data",
+        }
+    }
+
+    result = override_cloud_storage_paths(config)
+
+    assert result["paths"] == {
+        "models": "s3://new-bucket/models",
+        "custom": "s3://new-bucket/custom/data",
+    }
+
+
+@pytest.mark.parametrize(
+    "bucket",
+    ["", " ", "s3://", "bucket/prefix", "gs://bucket", "bad bucket"],
+)
+def test_aws_rejects_missing_or_invalid_bucket(
+    monkeypatch: pytest.MonkeyPatch,
+    bucket: str,
+) -> None:
+    monkeypatch.setenv("CLOUD_PROVIDER", "aws")
+    monkeypatch.setenv("S3_BUCKET_NAME", bucket)
+
+    with pytest.raises(ValueError, match="S3_BUCKET_NAME"):
+        override_cloud_storage_paths({"paths": {"models": "artifacts/models"}})
+
+
+def test_default_keeps_gcp_bucket_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GCS_BUCKET_NAME", "new-gcs-bucket")
+
+    result = override_cloud_storage_paths(
+        {"paths": {"models": "gs://old-bucket/models"}}
+    )
+
+    assert result["paths"]["models"] == "gs://new-gcs-bucket/models"
+
+
+def test_explicit_local_preserves_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CLOUD_PROVIDER", "local")
+    monkeypatch.setenv("GCS_BUCKET_NAME", "ignored-bucket")
+    config = {"paths": {"models": "artifacts/models"}}
+
+    assert override_cloud_storage_paths(config) == config
+
+
+def test_unknown_provider_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CLOUD_PROVIDER", "unknown")
+
+    with pytest.raises(ValueError, match="CLOUD_PROVIDER"):
+        override_cloud_storage_paths({})
+
+
+def test_loader_applies_aws_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_directory = tmp_path / "configs"
+    config_directory.mkdir()
+    (config_directory / "dev.yaml").write_text(
+        "paths:\n"
+        "  raw: data/raw\n"
+        "  models: artifacts/models\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(loader, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setenv("APP_ENV", "dev")
+    monkeypatch.setenv("CLOUD_PROVIDER", "aws")
+    monkeypatch.setenv("S3_BUCKET_NAME", "example-bucket")
+
+    result = loader.load_config()
+
+    assert result["paths"]["raw"] == "s3://example-bucket/data/raw"
+    assert result["paths"]["models"] == "s3://example-bucket/models"
+    assert result["environment"] == "dev"

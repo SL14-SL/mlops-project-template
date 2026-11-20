@@ -4,10 +4,11 @@
 
 ## Project scope
 
-Selected tier: **{{ project_tier }}**.
+Selected tier: **{{ project_tier }}**. Cloud platform: **{{ cloud_provider }}**.
+Local development remains available independently of this selection.
 
 - `api`: model serving, authentication, health checks, operational metrics, Docker and tests.
-- `deployment`: API plus GCP infrastructure, deployment/rollback workflows and monitoring stack.
+- `deployment`: API plus {{ cloud_provider | upper }} infrastructure, deployment/rollback workflows and monitoring stack.
 - `end_to_end`: deployment plus training interfaces, Prefect and MLflow services, registry and promotion.
 
 MLflow remains an inference dependency in every tier. A running tracking server is not
@@ -24,7 +25,7 @@ machine-learning system.
 The generated project provides a reusable MLOps foundation with:
 
 - environment-specific YAML configuration
-- local and Google Cloud Storage support
+- local, Google Cloud Storage and Amazon S3 support
 - immutable serving-release manifests
 - active-release pointers and rollback support
 - MLflow model loading
@@ -304,13 +305,23 @@ and business monitoring must be implemented for the selected use case.
 {% if project_tier != "api" %}
 ## Cloud deployment
 
-Google Cloud infrastructure and keyless GitHub Actions deployment are
-documented in
-[docs/cloud-deployment.md](docs/cloud-deployment.md).
+{% if cloud_provider == 'gcp' %}
+Google Cloud deployment and cleanup are documented in
+[cloud deployment](docs/cloud-deployment.md) and [cloud teardown](docs/cloud-teardown.md).
+{% else %}
+AWS deployment, OIDC setup and cleanup are documented in
+[AWS deployment](docs/aws-deployment.md).
+{% if project_tier == 'end_to_end' %}
+The [AWS lifecycle](docs/aws-lifecycle.md) connects project-specific training adapters,
+MLflow registry promotion, portable S3 serving releases and API refresh.
+[Managed MLflow](docs/aws-mlflow.md) uses Fargate, RDS PostgreSQL and S3.
+{% endif %}
+{% endif %}
 
-The controlled removal of application and bootstrap infrastructure is
-documented in
-[docs/cloud-teardown.md](docs/cloud-teardown.md).
+Generated infrastructure requires validation in your own account. The forecasting
+reference implementation was verified on AWS; that does not certify every generated
+project, model adapter or configuration.
+
 
 ## Operations
 
@@ -318,6 +329,16 @@ Operational triage, incident recovery and rollback procedures are
 documented in
 [docs/operations-runbook.md](docs/operations-runbook.md).
 {% endif %}
+{% if project_tier == "end_to_end" and cloud_provider == "aws" %}
+## AWS training
+
+Isolated training, Fargate transport, SageMaker configuration and cleanup
+are documented in [docs/aws-training.md](docs/aws-training.md).
+
+Fargate training was verified on AWS with a generated forecasting project
+and synthetic data. SageMaker cloud execution remains unverified.
+{% endif %}
+
 ## Template updates
 
 Instructions for applying newer template releases to an existing project are
